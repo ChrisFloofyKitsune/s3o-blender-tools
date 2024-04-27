@@ -1,10 +1,11 @@
 import math
 import struct
 from enum import Enum
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 
-import vertex_cache
+from .util import extract_null_terminated_string
 from mathutils import Vector
+
 
 _S3OHeader_struct = struct.Struct("< 12s i 5f 4i")
 """
@@ -35,251 +36,6 @@ _S3OVertex_struct = struct.Struct("< 3f 3f 2f")
 
 _S3OChildOffset_struct = struct.Struct("< i")
 _S3OIndex_struct = struct.Struct("< i")
-
-
-def vectorlength(v):
-    length = 0
-    for p in v:
-        length += p * p
-    return math.sqrt(length)
-
-
-def vectorcross(a, b):
-    c = (a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0])
-
-    return c
-
-
-def vectoradd(a, b):
-    return a[0] + b[0], a[1] + b[1], a[2] + b[2]
-
-
-def vectorminus(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def vectormult(a, b):
-    return (a[0] * b[0], a[1] * b[1], a[2] * b[2])
-
-
-def vectorscalarmult(a, b):
-    return (a[0] * b, a[1] * b, a[2] * b)
-
-
-def vectormix(a, b, f):
-    return vectoradd(vectorscalarmult(a, f), vectorscalarmult(b, 1.0 - f))
-
-
-def normalize(a):
-    l = vectorlength(a)
-    if l < 0.000001:
-        print('[WARN]', 'Normal vector is nearly 0 long, substituting 1 as length', )
-        l = 1.0
-    return a[0] / l, a[1] / l, a[2] / l
-
-
-def vectorangle(a, b):
-    a = normalize(a)
-    b = normalize(b)
-    dot = vectormult(a, b)
-    cosphi = dot[0] + dot[1] + dot[2]
-    angle = math.acos(max(-0.99999, min(0.99999, cosphi))) * 90 / math.pi
-    # print dot,cosphi, angle
-    return angle
-
-
-def face_normal(v1, v2, v3):
-    newnormal = vectorcross(
-        vectorminus(v2[0], v1[0]),
-        vectorminus(v3[0], v1[0])
-    )
-    if vectorlength(newnormal) < 0.001:
-        return (0, 1, 0)
-    else:
-        return normalize(newnormal)
-
-
-def _extract_null_terminated_string(data: bytes, offset: int) -> str:
-    """
-    :param data: raw bytes
-    :param offset: offset into bytes
-    :return: bytes up to (not including) '\0' decoded as utf8 string
-    """
-    if offset == 0:
-        return b"".decode()
-    else:
-        return data[offset:data.index(b'\x00', offset)].decode()
-
-
-def get_vertex_ao_value_01(u_channel: float):  # return the shadedness of a vertex, in range [0-1]
-    return (u_channel * 16384.0) % 1
-
-
-def recursively_optimize_pieces(piece):
-    if piece.indices is list and len(piece.indices) > 4:
-        optimize_piece(piece)
-        fix_zero_normals_piece(piece)
-
-    for child in piece.children:
-        recursively_optimize_pieces(child)
-
-
-def chunks(l, n):
-    """ Yield successive n-sized chunks from l.
-    """
-    for i in range(0, len(l), n):
-        yield tuple(l[i:i + n])
-
-
-def optimize_piece(piece: "S3OPiece"):
-    remap = {}
-    new_indices = []
-    print('[INFO]', 'Optimizing:', piece.name)
-    for index in piece.indices:
-        vertex = piece.vertices[index]
-        if vertex not in remap:
-            remap[vertex] = len(remap)
-        new_indices.append(remap[vertex])
-
-    new_vertices = [(index, vertex) for vertex, index in remap.items()]
-    new_vertices.sort()
-    new_vertices = [vertex for _, vertex in new_vertices]
-
-    if piece.primitive_type == "triangles" and len(new_indices) > 0:
-        tris = list(chunks(new_indices, 3))
-        acmr = vertex_cache.average_transform_to_vertex_ratio(tris)
-
-        tmp = vertex_cache.get_cache_optimized_triangles(tris)
-        acmr_new = vertex_cache.average_transform_to_vertex_ratio(tmp)
-        if acmr_new < acmr:
-            new_indices = []
-            for tri in tmp:
-                new_indices.extend(tri)
-
-    vertex_map = []
-    remapped_indices = []
-    for index in new_indices:
-        try:
-            new_index = vertex_map.index(index)
-        except ValueError:
-            new_index = len(vertex_map)
-            vertex_map.append(index)
-
-        remapped_indices.append(new_index)
-
-    new_vertices = [new_vertices[index] for index in vertex_map]
-    new_indices = remapped_indices
-
-    piece.indices = new_indices
-    piece.vertices = new_vertices
-
-
-##if there are zero vertices, the emit direction is 0,0,1, the emit position is the origin of the piece
-##if there is 1 vertex, the emit dir is the vector from the origin to the the position of the first vertex the emit position is the origin of the piece
-## if there is more than one, then the emit vector is the vector pointing from v[0] to v[1], and the emit position is v[0]
-def fix_zero_normals_piece(piece):
-    badnormals = 0
-    fixednormals = 0
-    nonunitnormals = 0
-    if len(piece.indices) > 0:
-
-        for v_i in range(len(piece.vertices)):
-            vertex = piece.vertices[v_i]
-            # print (vertex[1])
-            normallength = vectorlength(vertex[1])
-            if normallength < 0.01:  # nearly 0 normal
-                badnormals += 1
-                if v_i not in piece.indices:
-                    # this is some sort of degenerate vertex, just replace it's normal with [0,1,0]
-                    piece.vertices[v_i] = (vertex[0], (0.0, 1.0, 0.0), vertex[2])
-                    fixednormals += 1
-                else:
-                    for f_i in range(0, len(piece.indices), 3):
-                        if v_i in piece.indices[f_i:min(len(piece.indices), f_i + 3)]:
-                            newnormal = vectorcross(
-                                vectorminus(
-                                    piece.vertices[piece.indices[f_i + 1]][0],
-                                    piece.vertices[piece.indices[f_i]][0]
-                                ),
-                                vectorminus(
-                                    piece.vertices[piece.indices[f_i + 2]][0],
-                                    piece.vertices[piece.indices[f_i]][0]
-                                )
-                            )
-                            if vectorlength(newnormal) < 0.001:
-                                piece.vertices[v_i] = (vertex[0], (0.0, 1.0, 0.0), vertex[2])
-                            else:
-                                piece.vertices[v_i] = (vertex[0], normalize(newnormal), vertex[2])
-                            fixednormals += 1
-                            break
-            elif normallength < 0.9 or normallength > 1.1:
-                nonunitnormals += 1
-                piece.vertices[v_i] = (vertex[0], normalize(vertex[1]), vertex[2])
-    if badnormals > 0:
-        print('[WARN]', 'Bad normals:', badnormals, 'Fixed:', fixednormals)
-        if badnormals != fixednormals:
-            print('[WARN]', 'NOT ALL ZERO NORMALS fixed!!!!!')  # this isnt possible with above code anyway :/
-    if nonunitnormals > 0:
-        print('[WARN]', nonunitnormals, 'fixed to unit length')
-
-
-def recalculate_normals(piece, smoothangle, recursive=False):
-    # build a list of vertices, each with their list of faces:
-    if len(piece.indices) > 4 and piece.primitive_type == 'triangles':
-        # explode vertices uniquely
-        new_vertices = []
-        new_indices = []
-        for i, vi in enumerate(piece.indices):
-            new_vertices.append(piece.vertices[vi])
-            new_indices.append(i)
-        piece.vertices = new_vertices
-        piece.indices = new_indices
-
-        matchingvertices = []  # a list of vertex indices mapping other identical pos vertices
-        facespervertex = []
-        for i, v1 in enumerate(piece.vertices):
-            facespervertex.append([])
-            for j, v2 in enumerate(piece.vertices):
-                if vectorlength(vectorminus(v1[0], v2[0])) < 0.05:
-                    facespervertex[i].append(j)
-
-        for i, v1 in enumerate(piece.vertices):
-            if len(facespervertex[i]) > 0:
-                faceindex = int(math.floor(i / 3) * 3)
-                mynormal = face_normal(
-                    piece.vertices[faceindex + 0],
-                    piece.vertices[faceindex + 1],
-                    piece.vertices[faceindex + 2]
-                )
-
-                mixednorm = (0, 0, 0)
-                for facevertex in facespervertex[i]:
-                    # get face:
-                    faceindex = int(math.floor(facevertex / 3) * 3)
-                    faceindices = piece.indices[faceindex:faceindex + 3]
-                    mixednorm = vectoradd(
-                        mixednorm,
-                        face_normal(
-                            piece.vertices[faceindex + 0],
-                            piece.vertices[faceindex + 1],
-                            piece.vertices[faceindex + 2]
-                        )
-                    )
-                mixednorm = normalize(mixednorm)
-                # print(i, len(facespervertex[i]), mixednorm, mynormal)
-                if vectorangle(mynormal, mixednorm) <= smoothangle:
-                    piece.vertices[i] = (piece.vertices[i][0], mixednorm, piece.vertices[i][2])
-                else:
-                    piece.vertices[i] = (piece.vertices[i][0], mynormal, piece.vertices[i][2])
-    if recursive:
-        for child in piece.children:
-            recalculate_normals(child, smoothangle, recursive)
-
-
-# for child in piece.children:
-# fix_zero_normals_piece(child)
 
 
 class S3OVertex(NamedTuple):
@@ -340,7 +96,7 @@ class S3OPiece:
             index_offset, collision_data_offset, \
             x_offset, y_offset, z_offset = _S3OPiece_struct.unpack_from(data, offset)
 
-        self.name = _extract_null_terminated_string(data, name_offset)
+        self.name = extract_null_terminated_string(data, name_offset)
 
         self.parent = parent
         self.parent_offset = Vector((x_offset, y_offset, z_offset))
@@ -374,12 +130,12 @@ class S3OPiece:
         for child in self.children:
             child.mergechildren()
 
-        newverts = self.vertices
-        newindices = self.indices
-        indexoffset = len(self.vertices)
+        new_verts = self.vertices
+        new_indices = self.indices
+        index_offset = len(self.vertices)
         for child in self.children:
             for v in child.vertices:
-                newverts.append(
+                new_verts.append(
                     v.with_position(
                         Vector(
                             (
@@ -391,11 +147,10 @@ class S3OPiece:
                     )
                 )
             for index in child.indices:
-                newindices.append(index + indexoffset)
-            indexoffset += len(child.vertices)
-        # print (self.name, child.name, indexoffset)
-        self.vertices = newverts
-        self.indices = newindices
+                new_indices.append(index + index_offset)
+            index_offset += len(child.vertices)
+        self.vertices = new_verts
+        self.indices = new_indices
         self.children = []
 
     def rescale(self, scale):
@@ -448,9 +203,6 @@ class S3OPiece:
 
                 self.primitive_type = S3OPiece.PrimitiveType.Triangles
                 self.indices = new_idx
-
-        for child in self.children:
-            child.triangulate_faces()
 
     def serialize(self, offset):
         name_offset = _S3OPiece_struct.size + offset
@@ -539,8 +291,8 @@ class S3O:
         self.midpoint = Vector((mid_x, mid_y, mid_z))
 
         self.texture_paths = (
-            _extract_null_terminated_string(data, tex1_offset),
-            _extract_null_terminated_string(data, tex2_offset)
+            extract_null_terminated_string(data, tex1_offset),
+            extract_null_terminated_string(data, tex2_offset)
         )
         self.root_piece = S3OPiece(data, root_piece_offset)
 

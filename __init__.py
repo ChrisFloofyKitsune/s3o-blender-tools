@@ -1,16 +1,19 @@
-import sys
-import importlib
-
 bl_info = {
     'name': 'Spring 3D Object (*.s3o) Tools',
-    'category': 'All',
+    'author': 'ChrisFloofyKitsune, based on s3o code by Beherith and Muon',
+    "description": "Tools for working with *.s3o files.",
+    'category': 'Import-Export',
     'version': (0, 0, 1),
     'blender': (4, 1, 0)
 }
 
-modulesNames = ['s3o', 'vertex_cache']
+# boilerplate code from: https://b3d.interplanety.org/en/creating-multifile-add-on-for-blender/
+import sys
+import importlib
 
+modulesNames = ['s3o', 's3o_ops', 'vertex_cache']
 modulesFullNames = {}
+
 for name in modulesNames:
     if 'DEBUG_MODE' in sys.argv:
         modulesFullNames[name] = ('{}'.format(name))
