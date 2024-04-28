@@ -55,8 +55,8 @@ class S3OVertex(NamedTuple):
         # #BlameBeherith for this fractional float value abuse
         return (self.tex_coords[0] / 2 ** 14) % 1.0
 
-    @ambient_occlusion.fset
-    def _set_ambient_occlusion(self, value) -> None:
+    @ambient_occlusion.setter
+    def ambient_occlusion(self, value) -> None:
         # don't use full range so that rounding errors don't eat the packed in ao
         value = min(0.98, max(0.02, value))
 

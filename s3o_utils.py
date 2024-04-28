@@ -36,7 +36,7 @@ def in_smoothing_group(piece: S3OPiece, face_a: int, face_b: int, tolerance: flo
     return shared == 2
 
 
-def s3o_to_obj(s3o_object: "S3O", filename, optimize_for_wings3d=True):
+def s3o_to_obj(s3o: S3O, filename, optimize_for_wings3d=True):
     print("[INFO] Wings3d optimization:", optimize_for_wings3d)
     obj_file = open(filename, 'w')
     obj_file.write('# Spring Unit export, Created by Beherith mysterme@gmail.com with the help of Muon \n')
@@ -45,19 +45,19 @@ def s3o_to_obj(s3o_object: "S3O", filename, optimize_for_wings3d=True):
          t1 t2 = textures 1 and 2\n# Oxyz = piece offset\n# p = parent\n'
     )
     header = 'mx=%.2f,my=%.2f,mz=%.2f,r=%.2f,h=%.2f,t1=%s,t2=%s' % (
-        s3o_object.midpoint[0],
-        s3o_object.midpoint[1],
-        s3o_object.midpoint[2],
-        s3o_object.collision_radius,
-        s3o_object.height,
-        s3o_object.texture_paths[0],
-        s3o_object.texture_paths[1],
+        s3o.midpoint[0],
+        s3o.midpoint[1],
+        s3o.midpoint[2],
+        s3o.collision_radius,
+        s3o.height,
+        s3o.texture_paths[0],
+        s3o.texture_paths[1],
     )
     obj_vert_index = 0
     obj_normal_uv_index = 0  # obj indexes vertices from 1
 
     recurse_s3o_to_obj(
-        s3o_object.root_piece, obj_file, header, obj_vert_index, obj_normal_uv_index, 0, (0, 0, 0),
+        s3o.root_piece, obj_file, header, obj_vert_index, obj_normal_uv_index, 0, (0, 0, 0),
         optimize_for_wings3d
     )
 

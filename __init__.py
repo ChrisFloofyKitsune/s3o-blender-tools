@@ -7,40 +7,61 @@ bl_info = {
     'blender': (4, 1, 0)
 }
 
-# boilerplate code from: https://b3d.interplanety.org/en/creating-multifile-add-on-for-blender/
+"""
+### Dev Loader Script ###
+# Run from Blender's Text Editor
+
 import sys
 import importlib
+import importlib.util
 
-modulesNames = ['s3o', 's3o_ops', 'vertex_cache']
-modulesFullNames = {}
+# https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
 
-for name in modulesNames:
-    if 'DEBUG_MODE' in sys.argv:
-        modulesFullNames[name] = ('{}'.format(name))
+module_name = "s3o_blender_tools"
+file_path = "C:/bar_dev/blender_stuff/s3o_blender_tools/__init__.py"
+
+if module_name in sys.modules:
+    try:
+        sys.modules[module_name].unregister()
+    except Exception as err:
+        print(err)
+
+spec = importlib.util.spec_from_file_location(module_name, file_path)
+module = importlib.util.module_from_spec(spec)
+sys.modules[module_name] = module
+spec.loader.exec_module(module)
+
+module.register()
+"""
+
+# bootstrapping code based on: https://b3d.interplanety.org/en/creating-multifile-add-on-for-blender/
+import importlib
+import sys
+from glob import glob
+
+child_modules = {mod_name: f'{__name__}.{mod_name}' for mod_name in (
+    p.replace('\\', '.').replace('/', '.').removesuffix('.py')
+    for p in glob("**/[!_]*.py", root_dir=__path__[0], recursive=True)
+)}
+
+for mod_name, full_name in child_modules.items():
+    if full_name in sys.modules:
+        print('Reload', full_name)
+        importlib.reload(sys.modules[full_name])
     else:
-        modulesFullNames[name] = ('{}.{}'.format(__name__, name))
+        print('Initial load', full_name)
+        parent, name = mod_name.rsplit('.', 1)
+        exec(f'from .{parent} import {name}')
 
-for fullName in modulesFullNames.values():
-    if fullName in sys.modules:
-        importlib.reload(sys.modules[fullName])
-    else:
-        globals()[fullName] = importlib.import_module(fullName)
-        setattr(globals()[fullName], 'modulesNames', modulesFullNames)
-
+del mod_name, full_name
 
 def register():
-    for currentModuleName in modulesFullNames.values():
-        if currentModuleName in sys.modules:
-            if hasattr(sys.modules[currentModuleName], 'register'):
-                sys.modules[currentModuleName].register()
+    for full_name in child_modules.values():
+        if full_name in sys.modules and hasattr(sys.modules[full_name], 'register'):
+            sys.modules[full_name].register()
 
 
 def unregister():
-    for currentModuleName in modulesFullNames.values():
-        if currentModuleName in sys.modules:
-            if hasattr(sys.modules[currentModuleName], 'unregister'):
-                sys.modules[currentModuleName].unregister()
-
-
-if __name__ == "__main__":
-    register()
+    for full_name in child_modules.values():
+        if full_name in sys.modules and hasattr(sys.modules[full_name], 'unregister'):
+            sys.modules[full_name].unregister()
