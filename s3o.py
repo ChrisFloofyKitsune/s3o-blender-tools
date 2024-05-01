@@ -273,7 +273,7 @@ class S3O:
     height: float
     midpoint: Vector
     texture_paths = [str]
-    root_piece = 'S3OPiece'
+    root_piece = S3OPiece
 
     def __init__(self, data: bytes):
         header = _S3OHeader_struct.unpack_from(data, 0)

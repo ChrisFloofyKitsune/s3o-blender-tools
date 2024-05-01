@@ -1,10 +1,24 @@
 import math
+from copy import copy
 
-from mathutils import Vector
+import bmesh
+import bpy.types
+from bpy_extras import object_utils
+from mathutils import Vector, Matrix
 from mathutils.geometry import normal
-from . import vertex_cache
+from . import util, vertex_cache
 from .s3o import S3O, S3OPiece, S3OVertex
 from .util import batched
+
+TO_BLENDER_SPACE = Matrix(
+    (
+        (-1, 0, 0, 0),
+        (0, 0, 1, 0),
+        (0, 1, 0, 0),
+        (0, 0, 0, 1),
+    )
+).freeze()
+FROM_BLENDER_SPACE = TO_BLENDER_SPACE.inverted().freeze()
 
 
 def closest_vertex(vtable: list[S3OVertex], q: int, tolerance: float):  # returns the index of the closest vertex pos
@@ -36,291 +50,207 @@ def in_smoothing_group(piece: S3OPiece, face_a: int, face_b: int, tolerance: flo
     return shared == 2
 
 
-def s3o_to_obj(s3o: S3O, filename, optimize_for_wings3d=True):
-    print("[INFO] Wings3d optimization:", optimize_for_wings3d)
-    obj_file = open(filename, 'w')
-    obj_file.write('# Spring Unit export, Created by Beherith mysterme@gmail.com with the help of Muon \n')
-    obj_file.write(
-        '# arguments of an object \'o\' piecename:\n# Mxyz = midpoint of an s3o\n# r = unit radius\n# h = height\n#\
-         t1 t2 = textures 1 and 2\n# Oxyz = piece offset\n# p = parent\n'
-    )
-    header = 'mx=%.2f,my=%.2f,mz=%.2f,r=%.2f,h=%.2f,t1=%s,t2=%s' % (
-        s3o.midpoint[0],
-        s3o.midpoint[1],
-        s3o.midpoint[2],
-        s3o.collision_radius,
-        s3o.height,
-        s3o.texture_paths[0],
-        s3o.texture_paths[1],
-    )
-    obj_vert_index = 0
-    obj_normal_uv_index = 0  # obj indexes vertices from 1
+def create_blender_obj(
+    s3o: S3O,
+    *,
+    name="loaded_s3o",
+    merge_vertices=True,
+) -> bpy.types.Object:
+    if bpy.context.object:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.select_all(action='DESELECT')
 
-    recurse_s3o_to_obj(
-        s3o.root_piece, obj_file, header, obj_vert_index, obj_normal_uv_index, 0, (0, 0, 0),
-        optimize_for_wings3d
+    bpy.ops.object.empty_add(type='ARROWS', radius=s3o.collision_radius / 4)
+    root = bpy.context.object
+    root.name = name
+
+    bpy.ops.object.empty_add(type='SPHERE', location=s3o.midpoint, radius=s3o.collision_radius)
+    radius_empty = bpy.context.object
+    radius_empty.name = 'collision_radius'
+    radius_empty.parent = root
+
+    bpy.ops.object.empty_add(type='SINGLE_ARROW', location=(0, s3o.height, 0), radius=s3o.collision_radius / 2)
+    height_empty = bpy.context.object
+    height_empty.name = 'height'
+    height_empty.rotation_euler = Vector((0, 0, 1)).rotation_difference((0, 1, 0)).to_euler()
+    height_empty.parent = root
+
+    recurse_add_s3o_piece_as_child(
+        s3o.root_piece, root, merge_vertices=merge_vertices
     )
 
+    bpy.ops.object.select_all(action='DESELECT')
+    root.select_set(True)
 
-def recurse_s3o_to_obj(
-    piece, obj_file, extra_args, v_idx, nt_idx, groups, offset,
-    optimize_for_wings3d=True
+    root.matrix_basis = TO_BLENDER_SPACE @ root.matrix_basis
+    root.location = (0, 0, 0)
+    # bpy.ops.object.transform_apply(location=False)
+
+    return root
+
+
+def recurse_add_s3o_piece_as_child(
+    piece: S3OPiece,
+    obj: bpy.types.Object,
+    *,
+    merge_vertices=True
 ):
-    # If we don't use shared vertices in a OBJ file in wings, it won't be able to merge vertices,
-    # so we need a mapping to remove redundant vertices, normals and texture indices are separate
-    parent = ''
-    old_nt_idx = nt_idx
-
-    if piece.parent is not None:
-        parent = piece.parent.name
-        print('[INFO] parentname=', piece.parent.name)
-
-    vdata_obj = []  # vertex, normal and UV in the piece
-    fdata_obj = []  # holds the faces in the piece
-    v_hash = {}
-    v_count = 0
-    step = 3  # todo: fix for not just triangles
-    if piece.primitive_type == 'triangles':
-        step = 3
-    elif piece.primitive_type == 'quads':
-        step = 4
-    print('[INFO]', piece.name, 'has', piece.primitive_type, step)
-    if len(piece.indices) >= step and piece.primitive_type != "triangle strips":
-        obj_file.write(
-            'o %s,ox=%.2f,oy=%.2f,oz=%.2f,p=%s,%s\n' % (
-                piece.name.decode(),
-                piece.parent_offset[0],
-                piece.parent_offset[1],
-                piece.parent_offset[2],
-                '' if parent == '' else parent.decode(),
-                extra_args)
-        )
-        print('[INFO]', 'Piece', piece.name, 'has more than 3 vert indices')
-        for k in range(0, len(piece.indices), step):  # iterate over faces
-            facestr = 'f'
-            for i in range(step):
-                v = piece.vertices[piece.indices[k + i]]
-                # sanity check normals:
-                for j in range(3):
-                    if 1000000 > v[1][j] > -1000000:
-                        pass  # any comparison of NaN is always false
-                    else:
-                        v = S3OVertex(v[0], Vector((0.0, 0.0, 0.0)), v[2])
-                        print('[WARN]', 'NAN normal encountered in piece', piece.name, 'replacing with 0')
-
-                if float('nan') in v[1]:
-                    print('[WARN]', 'NAN normal encountered in piece', piece.name)
-
-                if optimize_for_wings3d:
-                    closest = closest_vertex(piece.vertices, piece.indices[k + i], 0.002)
-                    if closest not in v_hash:
-                        # print 'closest',closest,'not in hash',hash
-                        v_count += 1
-                        v_hash[closest] = v_count
-                        vdata_obj.append(
-                            'v %f %f %f\n' % (
-                                v[0][0] + offset[0] + piece.parent_offset[0],
-                                v[0][1] + offset[1] + piece.parent_offset[1],
-                                v[0][2] + offset[2] + piece.parent_offset[2])
-                        )
-                    vdata_obj.append('vn %f %f %f\n' % (v[1][0], v[1][1], v[1][2]))
-                    vdata_obj.append('vt %.9f %.9f\n' % (v[2][0], v[2][1]))
-                    nt_idx += 1
-                    facestr += ' %i/%i/%i' % (v_idx + v_hash[closest], nt_idx, nt_idx)
-
-                else:
-                    closest = piece.indices[k + i]
-
-                    if closest not in v_hash:
-                        # print 'closest',closest,'not in hash',hash
-                        v_count += 1
-                        v_hash[closest] = v_count
-                        vdata_obj.append(
-                            'v %f %f %f\n' % (
-                                v[0][0] + offset[0] + piece.parent_offset[0],
-                                v[0][1] + offset[1] + piece.parent_offset[1],
-                                v[0][2] + offset[2] + piece.parent_offset[2])
-                        )
-                    vdata_obj.append('vn %f %f %f\n' % (v[1][0], v[1][1], v[1][2]))
-                    vdata_obj.append('vt %.9f %.9f\n' % (v[2][0], v[2][1]))
-                    nt_idx += 1
-                    # if 1==1: #closest>=piece.indices[k+i]: #no matching vert
-
-                    facestr += ' %i/%i/%i' % (v_idx + v_hash[closest], nt_idx, nt_idx)
-
-            fdata_obj.append(facestr + '\n')
-        for line in vdata_obj:
-            obj_file.write(line)
-        # now it's time to smooth this bitch!
-        # how wings3d processes obj meshes:
-        # if no normals are specified, it merges edges correctly, but all edges are soft
-        # if normals are specified, but there are no smoothing groups,
-        # it will treat each smoothed group as a separate mesh in an object
-        # if normals AND smoothing groups are specified, it works as it should
-
-        faces = {}
-        if optimize_for_wings3d:
-            for face1 in range(0, len(piece.indices), step):
-                # for f2 in range(f1+step,len(piece.indices),step):
-                for face2 in range(0, len(piece.indices), step):
-                    if face1 != face2 and in_smoothing_group(piece, face1, face2, 0.001, step):
-                        f1 = face1 / step
-                        f2 = face2 / step
-                        if f1 in faces and f2 in faces:
-                            if faces[f2] != faces[f1]:
-                                greater = max(faces[f2], faces[f1])
-                                lesser = min(faces[f2], faces[f1])
-                                for face_index in faces.keys():
-                                    if faces[face_index] == greater:
-                                        faces[face_index] = lesser
-                                    elif faces[face_index] > greater:
-                                        faces[face_index] -= 1
-                                groups -= 1
-                        # else:
-                        # print 'already in same group, yay!',f1,f2,faces[f1],faces[f2]
-                        elif f1 in faces:
-                            faces[f2] = faces[f1]
-                        elif f2 in faces:
-                            faces[f1] = faces[f2]
-                        else:
-                            groups += 1
-                            faces[f1] = groups
-                            faces[f2] = groups
-                    # if a face shares any two optimized position vertices and has equal normals on that,
-                    # it is in one smoothing group.
-                    # does it work for any 1
-        group_ids = set(faces.values())
-        print('[INFO]', 'Sets of smoothing groups in piece', piece.name, 'are', group_ids, groups)
-
-        non_smooth_faces = False
-        for line in range(len(fdata_obj)):
-            if line not in faces:
-                non_smooth_faces = True
-        if non_smooth_faces:
-            obj_file.write('s off\n')
-        for line in range(len(fdata_obj)):
-            if line not in faces:
-                obj_file.write(fdata_obj[line])
-        for k in group_ids:
-            obj_file.write('s ' + str(k) + '\n')
-            for line in range(len(fdata_obj)):
-                if line in faces and faces[line] == k:
-                    obj_file.write(fdata_obj[line])
-        print('[INFO]', 'Optimized vertex count=', v_count, 'unoptimized count=', nt_idx - old_nt_idx)
-    elif piece.primitive_type == "triangle strips":
-        print(
-            '[WARN]', piece.name,
-            'has a triangle strip type, this is unsupported by this application, skipping piece!'
-        )
+    new_obj: bpy.types.Object
+    if len(piece.indices) < 3:
+        new_obj = make_obj_from_s3o_empty(piece)
     else:
-        if not optimize_for_wings3d:
-            print('[WARN]', 'Skipping empty emit piece', piece.name, 'because wings3d optimization is off!')
-        else:
-            print(
-                '[INFO]', 'Empty piece', piece.name, 'writing placeholder face with primitive type',
-                piece.primitive_type, '#vertices=', len(piece.vertices), '#indices=', len(piece.indices)
-            )
-            obj_file.write(
-                'o %s,ox=%.2f,oy=%.2f,oz=%.2f,p=%s,%s,e=%i\n' % (
-                    piece.name.decode(),
-                    piece.parent_offset[0],
-                    piece.parent_offset[1],
-                    piece.parent_offset[2],
-                    '' if parent == '' else parent.decode(),
-                    '' if extra_args == '' else extra_args.encode().decode(),
-                    len(piece.vertices))
-            )
-            if len(piece.vertices) == 0:
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                        4 + offset[2] + piece.parent_offset[2])
-                )
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], 2 + offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                # objfile.write('v 0 0 0\n')
-                # objfile.write('v 0 0 1\n')
-                obj_file.write('f %i/1/1 %i/2/2 %i/3/3\n' % (v_idx + 1, v_idx + 2, v_idx + 3))
-                v_count += 3
-            elif len(piece.vertices) == 1:
-                print(
-                    '[INFO]', 'Emit vertices:', piece.vertices, 'offset:  %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                v = piece.vertices[0]
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        v[0][0] + offset[0] + piece.parent_offset[0],
-                        v[0][1] + offset[1] + piece.parent_offset[1],
-                        v[0][2] + offset[2] + piece.parent_offset[2])
-                )
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], 2 + offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                # objfile.write('v 0 0 0\n')
-                # objfile.write('v 0 0 1\n')
-                obj_file.write('f %i/1/1 %i/2/2 %i/3/3\n' % (v_idx + 1, v_idx + 2, v_idx + 3))
-                v_count += 3
-            elif len(piece.vertices) == 2:
-                print(
-                    '[INFO]', 'Emit vertices:', piece.vertices, 'offset:  %f %f %f\n' % (
-                        offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                        offset[2] + piece.parent_offset[2])
-                )
-                v = piece.vertices[0]
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        v[0][0] + offset[0] + piece.parent_offset[0],
-                        v[0][1] + offset[1] + piece.parent_offset[1],
-                        v[0][2] + offset[2] + piece.parent_offset[2])
-                )
-                v = piece.vertices[1]
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        v[0][0] + offset[0] + piece.parent_offset[0],
-                        v[0][1] + offset[1] + piece.parent_offset[1],
-                        v[0][2] + offset[2] + piece.parent_offset[2])
-                )
-                v = piece.vertices[0]
-                obj_file.write(
-                    'v %f %f %f\n' % (
-                        v[0][0] + offset[0] + piece.parent_offset[0],
-                        2 + v[0][1] + offset[1] + piece.parent_offset[1],
-                        v[0][2] + offset[2] + piece.parent_offset[2])
-                )
-
-                # objfile.write('v 0 0 0\n')
-                # objfile.write('v 0 0 1\n')
-                obj_file.write('f %i/1/1 %i/2/2 %i/3/3\n' % (v_idx + 1, v_idx + 2, v_idx + 3))
-                v_count += 3
-            else:
-                print('[ERROR]', 'Piece', piece.name, ': failed to write as it looks invalid')
-        # print 'empty piece',piece.name,'writing placeholder face with primitive type',piece.primitive_type
-    v_idx = v_idx + v_count
-    for child in piece.children:
-        v_idx, nt_idx = recurse_s3o_to_obj(
-            child, obj_file, '', v_idx, nt_idx, groups, (
-                offset[0] + piece.parent_offset[0], offset[1] + piece.parent_offset[1],
-                offset[2] + piece.parent_offset[2]),
-            optimize_for_wings3d
+        new_obj = make_obj_from_s3o_mesh(
+            piece,
+            merge_vertices=merge_vertices
         )
-    return v_idx, nt_idx
+
+    new_obj.location = piece.parent_offset
+    new_obj.parent = obj
+
+    for child in piece.children:
+        recurse_add_s3o_piece_as_child(
+            child, new_obj,
+            merge_vertices=merge_vertices
+        )
+
+    return new_obj
+
+
+def make_obj_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
+    emit_position = (0, 0, 0)
+    emit_dir = (0, 0, 0)
+
+    match (len(s3o_piece.vertices)):
+        case 0:
+            emit_dir = (0, 0, 1)
+        case 1:
+            emit_dir = s3o_piece.vertices[0][0]
+        case 2:
+            emit_position = s3o_piece.vertices[0].position
+            emit_dir = s3o_piece.vertices[1].position - emit_position
+        case _:
+            pass
+
+    rotation = Vector((0, 0, 1)).rotation_difference(emit_dir).to_euler()
+
+    bpy.ops.object.empty_add(type='SPHERE', radius=0.5)
+    empty_obj = bpy.context.object
+    empty_obj.name = s3o_piece.name
+
+    bpy.ops.object.empty_add(
+        type='SINGLE_ARROW', radius=5,
+        location=emit_position, rotation=rotation
+    )
+    aim_point = bpy.context.object
+    aim_point.name = empty_obj.name + ".emit_point"
+    aim_point.parent = empty_obj
+
+    return empty_obj
+
+
+def make_obj_from_s3o_mesh(
+    piece: S3OPiece,
+    *,
+    merge_vertices=True
+) -> bpy.types.Object:
+
+    for vertex in piece.vertices:
+        vertex.normal.normalize()
+
+    p_vertices = copy(piece.vertices)
+    p_indices = copy(piece.indices)
+
+    close_pos = util.close_to_comparator(threshold=0.002)
+    close_norm = util.close_to_comparator(threshold=0.01)
+    close_tex_coord = util.close_to_comparator(threshold=0.01)
+
+    # always combine all exact duplicates
+    duplicate_verts = util.duplicates_by_predicate(
+        p_vertices,
+        lambda v1, v2: (
+            close_pos(v1.position, v2.position)
+            and close_norm(v1.normal, v2.normal)
+            and close_tex_coord(v1.tex_coords, v2.tex_coords)
+        )
+    )
+
+    for i, current_vert_index in enumerate(p_indices):
+        if current_vert_index in duplicate_verts:
+            p_indices[i] = duplicate_verts[current_vert_index]
+
+    type_face_indices = list[tuple[int, int, int]]
+
+    face_indices_list: list[type_face_indices] = [
+        [(v0,) * 3, (v1,) * 3, (v2,) * 3]
+        for v0, v1, v2 in util.batched(p_indices, 3)
+    ]
+
+    # unpack all the vertices into their separate components
+    # vertexes can share the values of these
+    v_positions: dict[int, Vector] = {}
+    v_normals: dict[int, Vector] = {}
+
+    # tex_coords (and the ambient occlusion packed in them) are always considered unique per vertex
+    v_tex_coords: dict[int, Vector] = {}
+    v_ambient_occlusion: dict[int, float] = {}
+
+    for i, vertex in ((i, v) for i, v in enumerate(p_vertices) if i not in duplicate_verts):
+        (v_positions[i], v_normals[i], v_tex_coords[i]) = vertex
+        v_ambient_occlusion[i] = vertex.ambient_occlusion
+
+    if merge_vertices:
+        duplicate_positions = util.duplicates_by_predicate(v_positions, close_pos)
+        duplicate_normals = util.duplicates_by_predicate(v_normals, close_norm)
+
+        for face_indices in face_indices_list:
+            for i, (pos_idx, norm_idx, tex_coord_idx) in enumerate(face_indices):
+                face_indices[i] = (
+                    duplicate_positions[pos_idx] if pos_idx in duplicate_positions else pos_idx,
+                    duplicate_normals[norm_idx] if norm_idx in duplicate_normals else norm_idx,
+                    tex_coord_idx
+                )
+    # endif merge_vertices
+
+    bm = bmesh.new()
+    bmesh_vert_lookup: dict[int, dict[int, bmesh.types.BMVert]] = {}
+    for face_indices in face_indices_list:
+        for (pos_idx, norm_idx, _) in face_indices:
+            if pos_idx not in bmesh_vert_lookup:
+                bmesh_vert_lookup[pos_idx] = {}
+
+            if norm_idx not in bmesh_vert_lookup[pos_idx]:
+                vert = bm.verts.new(v_positions[pos_idx])
+                vert.normal = v_normals[norm_idx]
+                bmesh_vert_lookup[pos_idx][norm_idx] = vert
+
+    uv_layer = bm.loops.layers.uv.verify()
+    ao_layer = bm.loops.layers.float.new("ambient_occlusion")
+
+    for face_indices in face_indices_list:
+        face_verts = [bmesh_vert_lookup[pos_idx][norm_idx] for pos_idx, norm_idx, _ in face_indices]
+        try:
+            face = bm.faces.new(face_verts)
+            face.smooth = True
+
+            for i, loop in enumerate(face.loops):
+                _, _, tex_coord_idx = face_indices[i]
+                loop[uv_layer].uv = v_tex_coords[tex_coord_idx]
+                loop[ao_layer] = v_ambient_occlusion[tex_coord_idx]
+        except Exception as err:
+            print(err)
+
+    if merge_vertices:
+        for edge in bm.edges:
+            edge.smooth = not edge.is_boundary
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.002)
+    
+    mesh = bpy.data.meshes.new(piece.name)
+    bm.to_mesh(mesh)
+
+    new_obj = object_utils.object_data_add(bpy.context, mesh)
+    new_obj.name = piece.name
+
+    return new_obj
 
 
 def adjust_obj_to_s3o_offsets(piece, curx, cury, curz):
@@ -350,7 +280,7 @@ def recursively_optimize_pieces(piece):
         recursively_optimize_pieces(child)
 
 
-def optimize_piece(piece: "S3OPiece"):
+def optimize_piece(piece: S3OPiece):
     remap = {}
     new_indices = []
     print('[INFO]', 'Optimizing:', piece.name)
