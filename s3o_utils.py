@@ -66,12 +66,12 @@ def create_blender_obj(
 
     bpy.ops.object.empty_add(type='SPHERE', location=s3o.midpoint, radius=s3o.collision_radius)
     radius_empty = bpy.context.object
-    radius_empty.name = 'collision_radius'
+    radius_empty.name = f'{name}.collision_radius'
     radius_empty.parent = root
 
     bpy.ops.object.empty_add(type='SINGLE_ARROW', location=(0, s3o.height, 0), radius=s3o.collision_radius / 2)
     height_empty = bpy.context.object
-    height_empty.name = 'height'
+    height_empty.name = f'{name}.height'
     height_empty.rotation_euler = Vector((0, 0, 1)).rotation_difference((0, 1, 0)).to_euler()
     height_empty.parent = root
 
@@ -142,7 +142,7 @@ def make_obj_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
         location=emit_position, rotation=rotation
     )
     aim_point = bpy.context.object
-    aim_point.name = empty_obj.name + ".emit_point"
+    aim_point.name = empty_obj.name + ".emit_ray"
     aim_point.parent = empty_obj
 
     return empty_obj
