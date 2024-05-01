@@ -223,7 +223,7 @@ def make_obj_from_s3o_mesh(
                 vert.normal = v_normals[norm_idx]
                 bmesh_vert_lookup[pos_idx][norm_idx] = vert
 
-    uv_layer = bm.loops.layers.uv.verify()
+    uv_layer = bm.loops.layers.uv.new("UVMap")
     ao_layer = bm.loops.layers.float.new("ambient_occlusion")
 
     for face_indices in face_indices_list:
