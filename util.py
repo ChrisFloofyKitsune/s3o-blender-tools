@@ -8,7 +8,7 @@ T = TypeVar('T')
 
 
 def batched(iterable: Iterable[T], n) -> Generator[tuple[T]]:
-    """ 
+    """
     Batch data into tuples of length n. The last batch may be shorter.
     batched('ABCDEFG', 3) --> ABC DEF G
 
