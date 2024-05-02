@@ -53,7 +53,7 @@ class S3OVertex(NamedTuple):
     def ambient_occlusion(self) -> float:
         # ao is packed into the last ~7-8 bits of the texture U coordinate as a miniscule fractional value
         # #BlameBeherith for this fractional float value abuse
-        return (self.tex_coords[0] / 2 ** 14) % 1.0
+        return (self.tex_coords[0] * 2 ** 14) % 1.0
 
     @ambient_occlusion.setter
     def ambient_occlusion(self, value) -> None:
