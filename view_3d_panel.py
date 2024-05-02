@@ -3,7 +3,7 @@ from bpy.types import Panel, Context
 
 
 class MainPanel(Panel):
-    bl_idname = "S3O_PT_main"
+    bl_idname = "S3O_PT_view_3d_main"
     bl_label = "S3O Tools"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
