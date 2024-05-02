@@ -50,10 +50,14 @@ for mod_name, full_name in child_modules.items():
         importlib.reload(sys.modules[full_name])
     else:
         print('Initial load', full_name)
-        parent, name = mod_name.rsplit('.', 1)
+        parent, name = (
+            mod_name.rsplit('.', 1)
+            if '.' in mod_name else ('', mod_name)
+        )
         exec(f'from .{parent} import {name}')
 
 del mod_name, full_name
+
 
 def register():
     for full_name in child_modules.values():
