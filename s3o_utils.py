@@ -233,7 +233,7 @@ def make_obj_from_s3o_mesh(
     ao_layer = bm.loops.layers.float_color.new("ambient_occlusion")
 
     for face_indices in face_indices_list:
-        face_verts = [bmesh_vert_lookup[pos_idx][norm_idx] for pos_idx, norm_idx, _ in face_indices]
+        face_verts = [bmesh_vert_lookup[pos_idx][norm_idx] for pos_idx, norm_idx, _, _ in face_indices]
         try:
             face = bm.faces.new(face_verts)
             face.smooth = True
