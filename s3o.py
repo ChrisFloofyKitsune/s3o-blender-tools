@@ -3,9 +3,8 @@ import struct
 from enum import Enum
 from typing import NamedTuple
 
-from .util import extract_null_terminated_string
 from mathutils import Vector
-
+from .util import extract_null_terminated_string
 
 _S3OHeader_struct = struct.Struct("< 12s i 5f 4i")
 """
@@ -272,7 +271,8 @@ class S3O:
     collision_radius: float
     height: float
     midpoint: Vector
-    texture_paths = [str]
+    texture_path_1: str
+    texture_path_2: str
     root_piece = S3OPiece
 
     def __init__(self, data: bytes):
@@ -290,10 +290,9 @@ class S3O:
         self.height = height
         self.midpoint = Vector((mid_x, mid_y, mid_z))
 
-        self.texture_paths = (
-            extract_null_terminated_string(data, tex1_offset),
-            extract_null_terminated_string(data, tex2_offset)
-        )
+        self.texture_path_1 = extract_null_terminated_string(data, tex1_offset)
+        self.texture_path_2 = extract_null_terminated_string(data, tex2_offset)
+        
         self.root_piece = S3OPiece(data, root_piece_offset)
 
     def triangulate_faces(self):
