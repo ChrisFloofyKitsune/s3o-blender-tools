@@ -62,17 +62,7 @@ def create_blender_obj(
     bpy.ops.object.empty_add(type='ARROWS', radius=s3o.collision_radius / 4)
     root = bpy.context.object
     root.name = name
-
-    bpy.ops.object.empty_add(type='SPHERE', location=s3o.midpoint, radius=s3o.collision_radius)
-    radius_empty = bpy.context.object
-    radius_empty.name = f'{name}.collision_radius'
-    radius_empty.parent = root
-
-    bpy.ops.object.empty_add(type='SINGLE_ARROW', location=(0, s3o.height, 0), radius=s3o.collision_radius / 2)
-    height_empty = bpy.context.object
-    height_empty.name = f'{name}.height'
-    height_empty.rotation_euler = Vector((0, 0, 1)).rotation_difference((0, 1, 0)).to_euler()
-    height_empty.parent = root
+    set_root_props(root, s3o, name)
 
     recurse_add_s3o_piece_as_child(
         s3o.root_piece, root, merge_vertices=merge_vertices
@@ -88,6 +78,19 @@ def create_blender_obj(
     return root
 
 
+def set_root_props(obj: bpy.types.Object, s3o: S3O, name: str):
+    obj.s3o_props.s3o_empty_type = 'ROOT'
+
+    obj.s3o_props.root__name = name
+
+    obj.s3o_props.root__collision_radius = s3o.collision_radius
+    obj.s3o_props.root__height = s3o.height
+    obj.s3o_props.root__midpoint = s3o.midpoint
+
+    obj.s3o_props.root__texture_path_1 = s3o.texture_path_1
+    obj.s3o_props.root__texture_path_2 = s3o.texture_path_2
+
+
 def recurse_add_s3o_piece_as_child(
     piece: S3OPiece,
     obj: bpy.types.Object,
@@ -96,7 +99,7 @@ def recurse_add_s3o_piece_as_child(
 ):
     new_obj: bpy.types.Object
     if len(piece.indices) < 3:
-        new_obj = make_obj_from_s3o_empty(piece)
+        new_obj = make_aim_point_from_s3o_empty(piece)
     else:
         new_obj = make_obj_from_s3o_mesh(
             piece,
@@ -115,36 +118,33 @@ def recurse_add_s3o_piece_as_child(
     return new_obj
 
 
-def make_obj_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
-    emit_position = (0, 0, 0)
-    emit_dir = (0, 0, 0)
+def make_aim_point_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
+    aim_position = (0, 0, 0)
+    aim_dir = (0, 0, 0)
 
     match (len(s3o_piece.vertices)):
         case 0:
-            emit_dir = (0, 0, 1)
+            aim_dir = (0, 0, 1)
         case 1:
-            emit_dir = s3o_piece.vertices[0][0]
+            aim_dir = s3o_piece.vertices[0][0]
         case 2:
-            emit_position = s3o_piece.vertices[0].position
-            emit_dir = s3o_piece.vertices[1].position - emit_position
+            aim_position = s3o_piece.vertices[0].position
+            aim_dir = s3o_piece.vertices[1].position - aim_position
         case _:
             pass
 
-    rotation = Vector((0, 0, 1)).rotation_difference(emit_dir).to_euler()
-
     bpy.ops.object.empty_add(type='SPHERE', radius=0.5)
-    empty_obj = bpy.context.object
-    empty_obj.name = s3o_piece.name
-
-    bpy.ops.object.empty_add(
-        type='SINGLE_ARROW', radius=5,
-        location=emit_position, rotation=rotation
-    )
     aim_point = bpy.context.object
-    aim_point.name = empty_obj.name + ".emit_ray"
-    aim_point.parent = empty_obj
+    aim_point.name = s3o_piece.name
+    set_aim_point_props(aim_point, aim_position, aim_dir)
 
-    return empty_obj
+    return aim_point
+
+
+def set_aim_point_props(obj: bpy.types.Object, position: Vector, direction: Vector):
+    obj.s3o_props.s3o_empty_type = 'AIM_POINT'
+    obj.s3o_props.aim_point__pos = position
+    obj.s3o_props.aim_point__dir = direction
 
 
 def make_obj_from_s3o_mesh(
@@ -162,7 +162,7 @@ def make_obj_from_s3o_mesh(
 
     # store this now so that values are not overlooked as a result of the de-duplication steps
     v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
-    
+
     close_pos = util.close_to_comparator(threshold=0.002)
     close_norm = util.close_to_comparator(threshold=0.01)
     close_tex_coord = util.close_to_comparator(threshold=0.01)

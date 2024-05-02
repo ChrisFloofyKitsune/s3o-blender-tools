@@ -21,6 +21,10 @@ class S3OProperties(PropertyGroup):
         options=set(),
     )
 
+    root__name: StringProperty(
+        name="s3o_name"
+    )
+
     root__collision_radius: FloatProperty(
         name="collision_radius",
         subtype="DISTANCE",
@@ -70,7 +74,6 @@ def register():
         poll=S3OProperties.poll,
         options=set(),
     )
-
 
 def unregister():
     bpy.utils.unregister_class(S3OProperties)
