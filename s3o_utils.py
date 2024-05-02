@@ -1,5 +1,4 @@
 import math
-from copy import copy
 
 import bmesh
 import bpy.types
@@ -157,9 +156,13 @@ def make_obj_from_s3o_mesh(
     for vertex in piece.vertices:
         vertex.normal.normalize()
 
-    p_vertices = copy(piece.vertices)
-    p_indices = copy(piece.indices)
+    p_vertices = piece.vertices
+    p_indices: list[tuple[int, int]] = [(idx, idx) for idx in piece.indices]
+    """ vertex index, ao index """
 
+    # store this now so that values are not overlooked as a result of the de-duplication steps
+    v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
+    
     close_pos = util.close_to_comparator(threshold=0.002)
     close_norm = util.close_to_comparator(threshold=0.01)
     close_tex_coord = util.close_to_comparator(threshold=0.01)
@@ -174,15 +177,19 @@ def make_obj_from_s3o_mesh(
         )
     )
 
-    for i, current_vert_index in enumerate(p_indices):
+    for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
         if current_vert_index in duplicate_verts:
-            p_indices[i] = duplicate_verts[current_vert_index]
+            p_indices[i] = (duplicate_verts[current_vert_index], p_indices[i][1])
 
-    type_face_indices = list[tuple[int, int, int]]
+    type_face_indices = list[tuple[int, int, int, int]]
 
     face_indices_list: list[type_face_indices] = [
-        [(v0,) * 3, (v1,) * 3, (v2,) * 3]
-        for v0, v1, v2 in util.batched(p_indices, 3)
+        [
+            (pair1[0], pair1[0], pair1[0], pair1[1]),
+            (pair2[0], pair2[0], pair2[0], pair2[1]),
+            (pair3[0], pair3[0], pair3[0], pair3[1]),
+        ]
+        for pair1, pair2, pair3 in util.batched(p_indices, 3)
     ]
 
     # unpack all the vertices into their separate components
@@ -192,29 +199,28 @@ def make_obj_from_s3o_mesh(
 
     # tex_coords (and the ambient occlusion packed in them) are always considered unique per vertex
     v_tex_coords: dict[int, Vector] = {}
-    v_ambient_occlusion: dict[int, float] = {}
 
     for i, vertex in ((i, v) for i, v in enumerate(p_vertices) if i not in duplicate_verts):
         (v_positions[i], v_normals[i], v_tex_coords[i]) = vertex
-        v_ambient_occlusion[i] = vertex.ambient_occlusion
 
     if merge_vertices:
         duplicate_positions = util.duplicates_by_predicate(v_positions, close_pos)
         duplicate_normals = util.duplicates_by_predicate(v_normals, close_norm)
 
         for face_indices in face_indices_list:
-            for i, (pos_idx, norm_idx, tex_coord_idx) in enumerate(face_indices):
+            for i, (pos_idx, norm_idx, tex_coord_idx, ao_idx) in enumerate(face_indices):
                 face_indices[i] = (
                     duplicate_positions[pos_idx] if pos_idx in duplicate_positions else pos_idx,
                     duplicate_normals[norm_idx] if norm_idx in duplicate_normals else norm_idx,
-                    tex_coord_idx
+                    tex_coord_idx,
+                    ao_idx
                 )
     # endif merge_vertices
 
     bm = bmesh.new()
     bmesh_vert_lookup: dict[int, dict[int, bmesh.types.BMVert]] = {}
     for face_indices in face_indices_list:
-        for (pos_idx, norm_idx, _) in face_indices:
+        for (pos_idx, norm_idx, _, _) in face_indices:
             if pos_idx not in bmesh_vert_lookup:
                 bmesh_vert_lookup[pos_idx] = {}
 
@@ -233,9 +239,9 @@ def make_obj_from_s3o_mesh(
             face.smooth = True
 
             for i, loop in enumerate(face.loops):
-                _, _, tex_coord_idx = face_indices[i]
+                _, _, tex_coord_idx, ao_idx = face_indices[i]
                 loop[uv_layer].uv = v_tex_coords[tex_coord_idx]
-                loop[ao_layer] = (*((v_ambient_occlusion[tex_coord_idx],) * 3), 1)
+                loop[ao_layer] = (*((v_ambient_occlusion[ao_idx],) * 3), 1)
         except Exception as err:
             print(err)
 
