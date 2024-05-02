@@ -4,7 +4,7 @@ from copy import copy
 import bmesh
 import bpy.types
 from bpy_extras import object_utils
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Color
 from mathutils.geometry import normal
 from . import util, vertex_cache
 from .s3o import S3O, S3OPiece, S3OVertex
@@ -224,7 +224,7 @@ def make_obj_from_s3o_mesh(
                 bmesh_vert_lookup[pos_idx][norm_idx] = vert
 
     uv_layer = bm.loops.layers.uv.new("UVMap")
-    ao_layer = bm.loops.layers.float.new("ambient_occlusion")
+    ao_layer = bm.loops.layers.float_color.new("ambient_occlusion")
 
     for face_indices in face_indices_list:
         face_verts = [bmesh_vert_lookup[pos_idx][norm_idx] for pos_idx, norm_idx, _ in face_indices]
@@ -235,7 +235,7 @@ def make_obj_from_s3o_mesh(
             for i, loop in enumerate(face.loops):
                 _, _, tex_coord_idx = face_indices[i]
                 loop[uv_layer].uv = v_tex_coords[tex_coord_idx]
-                loop[ao_layer] = v_ambient_occlusion[tex_coord_idx]
+                loop[ao_layer] = (*((v_ambient_occlusion[tex_coord_idx], ) * 3), 1)
         except Exception as err:
             print(err)
 
@@ -246,6 +246,8 @@ def make_obj_from_s3o_mesh(
     
     mesh = bpy.data.meshes.new(piece.name)
     bm.to_mesh(mesh)
+    mesh.attributes.default_color_name = "ambient_occlusion"
+    mesh.attributes.active_color_name = "ambient_occlusion"
 
     new_obj = object_utils.object_data_add(bpy.context, mesh)
     new_obj.name = piece.name
