@@ -79,16 +79,16 @@ def create_blender_obj(
 
 
 def set_root_props(obj: bpy.types.Object, s3o: S3O, name: str):
-    obj.s3o_props.s3o_empty_type = 'ROOT'
+    obj.s3o_empty_type = 'ROOT'
 
-    obj.s3o_props.root__name = name
+    obj.s3o_root.s3o_name = name
 
-    obj.s3o_props.root__collision_radius = s3o.collision_radius
-    obj.s3o_props.root__height = s3o.height
-    obj.s3o_props.root__midpoint = s3o.midpoint
+    obj.s3o_root.collision_radius = s3o.collision_radius
+    obj.s3o_root.height = s3o.height
+    obj.s3o_root.midpoint = s3o.midpoint
 
-    obj.s3o_props.root__texture_path_1 = s3o.texture_path_1
-    obj.s3o_props.root__texture_path_2 = s3o.texture_path_2
+    obj.s3o_root.texture_path_1 = s3o.texture_path_1
+    obj.s3o_root.texture_path_2 = s3o.texture_path_2
 
 
 def recurse_add_s3o_piece_as_child(
@@ -142,9 +142,9 @@ def make_aim_point_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
 
 
 def set_aim_point_props(obj: bpy.types.Object, position: Vector, direction: Vector):
-    obj.s3o_props.s3o_empty_type = 'AIM_POINT'
-    obj.s3o_props.aim_point__pos = position
-    obj.s3o_props.aim_point__dir = direction
+    obj.s3o_empty_type = 'AIM_POINT'
+    obj.s3o_aim_point.pos = position
+    obj.s3o_aim_point.dir = direction
 
 
 def make_obj_from_s3o_mesh(

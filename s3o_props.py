@@ -1,12 +1,73 @@
-from typing import Any
+from typing import Any, Literal
 
 import bpy
 from bpy.props import EnumProperty, FloatProperty, FloatVectorProperty, StringProperty, PointerProperty
 from bpy.types import PropertyGroup
 
 
-class S3OProperties(PropertyGroup):
-    s3o_empty_type: EnumProperty(
+class S3OPropertyGroup(PropertyGroup):
+    empty_type: Literal['ROOT'] | Literal['AIM_POINT']
+
+    @classmethod
+    def poll(cls, obj: bpy.types.Object | Any):
+        return isinstance(obj, bpy.types.Object) and obj.type == 'EMPTY' and obj.s3o_empty_type == cls.empty_type
+
+    def _poll(self, obj: bpy.types.Object | Any):
+        return self.__class__.poll(obj)
+
+
+class S3ORootProperties(S3OPropertyGroup):
+    empty_type = 'ROOT'
+
+    s3o_name: StringProperty(
+        name="Name"
+    )
+
+    collision_radius: FloatProperty(
+        name="Collision Radius",
+        subtype="DISTANCE",
+        default=0
+    )
+
+    height: FloatProperty(
+        name="Height",
+        subtype="DISTANCE",
+    )
+
+    midpoint: FloatVectorProperty(
+        name='Midpoint',
+        subtype="XYZ_LENGTH",
+        size=3,
+    )
+
+    texture_path_1: StringProperty(
+        name='Color Texture'
+    )
+
+    texture_path_2: StringProperty(
+        name='Other Texture'
+    )
+
+
+class S3OAimPointProperties(S3OPropertyGroup):
+    empty_type = 'AIM_POINT'
+
+    pos: FloatVectorProperty(
+        name="Aim Position",
+        subtype="XYZ_LENGTH",
+        size=3
+    )
+
+    dir: FloatVectorProperty(
+        name="Aim Direction",
+        subtype="XYZ",
+        size=3,
+        default=(0, 0, 1)
+    )
+
+
+def register():
+    bpy.types.Object.s3o_empty_type = EnumProperty(
         items=[
             (
                 'ROOT', 's3o root',
@@ -21,59 +82,21 @@ class S3OProperties(PropertyGroup):
         options=set(),
     )
 
-    root__name: StringProperty(
-        name="s3o_name"
-    )
-
-    root__collision_radius: FloatProperty(
-        name="collision_radius",
-        subtype="DISTANCE",
-        default=0
-    )
-
-    root__height: FloatProperty(
-        name="height",
-        subtype="DISTANCE",
-    )
-
-    root__midpoint: FloatVectorProperty(
-        name='midpoint',
-        subtype="XYZ_LENGTH",
-        size=3,
-    )
-
-    root__texture_path_1: StringProperty(
-        name='texture_path_1'
-    )
-
-    root__texture_path_2: StringProperty(
-        name='texture_path_2'
-    )
-
-    aim_point__pos: FloatVectorProperty(
-        name="aim_pos",
-        subtype="XYZ_LENGTH",
-        size=3
-    )
-
-    aim_point__dir: FloatVectorProperty(
-        name="aim_dir",
-        subtype="XYZ",
-        size=3,
-        default=(0, 0, 1)
-    )
-
-    def poll(self, obj: bpy.types.Object | Any):
-        return isinstance(obj, bpy.types.Object) and obj.type == 'EMPTY'
-
-
-def register():
-    bpy.utils.register_class(S3OProperties)
-    bpy.types.Object.s3o_props = PointerProperty(
-        type=S3OProperties,
-        poll=S3OProperties.poll,
+    bpy.utils.register_class(S3ORootProperties)
+    bpy.types.Object.s3o_root = PointerProperty(
+        type=S3ORootProperties,
+        poll=S3ORootProperties._poll,
         options=set(),
     )
 
+    bpy.utils.register_class(S3OAimPointProperties)
+    bpy.types.Object.s3o_aim_point = PointerProperty(
+        type=S3OAimPointProperties,
+        poll=S3OAimPointProperties._poll,
+        options=set(),
+    )
+
+
 def unregister():
-    bpy.utils.unregister_class(S3OProperties)
+    bpy.utils.unregister_class(S3ORootProperties)
+    bpy.utils.unregister_class(S3OAimPointProperties)
