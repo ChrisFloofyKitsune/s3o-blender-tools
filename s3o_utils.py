@@ -22,35 +22,6 @@ TO_FROM_BLENDER_SPACE = Matrix(
 """ This is just a couple of rotations. Also is it's own inverse! """
 
 
-def closest_vertex(vtable: list[S3OVertex], q: int, tolerance: float):  # returns the index of the closest vertex pos
-    v = vtable[q].position
-    for i in range(len(vtable)):
-        v2 = vtable[i].position
-        if abs(v2[0] - v[0]) < tolerance and abs(v2[1] - v[1]) < tolerance and abs(v2[2] - v[2]) < tolerance:
-            return i
-    print('[WARN] No matching vertex for', v, ' not even self!')
-    return q
-
-
-def in_smoothing_group(piece: S3OPiece, face_a: int, face_b: int, tolerance: float, step: int):
-    """ returns whether the two primitives share a smoothed edge """
-    shared = 0
-    for va in range(face_a, face_a + step):
-        for vb in range(face_b, face_b + step):
-            v = piece.vertices[piece.indices[va]]
-            v2 = piece.vertices[piece.indices[vb]]
-            if abs(v2[0][0] - v[0][0]) < tolerance and abs(v2[0][1] - v[0][1]) < tolerance and abs(
-                v2[0][2] - v[0][2]
-            ) < tolerance:
-                if abs(v2[1][0] - v[1][0]) < tolerance and abs(v2[1][1] - v[1][1]) < tolerance and abs(
-                    v2[1][2] - v[1][2]
-                ) < tolerance:
-                    shared += 1
-    if shared >= 3:
-        print('[WARN]', shared, 'shared and normal matching vertices faces', face_a, face_b, piece.name)
-    return shared == 2
-
-
 def s3o_to_blender_obj(
     s3o: S3O,
     *,
@@ -172,7 +143,7 @@ def make_bl_obj_from_s3o_mesh(
         return util.vector_close_equals(v1, v2, threshold=0.01)
 
     def close_tex_coord(v1, v2):
-        return util.vector_close_equals(v1, v2, threshold=0.01)
+        return util.vector_close_equals(v1, v2, threshold=0.001)
 
     duplicate_verts = []
 
@@ -214,7 +185,8 @@ def make_bl_obj_from_s3o_mesh(
 
     if merge_vertices:
         duplicate_positions = util.duplicates_by_predicate(v_positions, close_pos)
-        duplicate_normals = util.duplicates_by_predicate(v_normals, close_norm)
+        norms_to_check = {i: v_normals[i] for i in duplicate_positions.keys()}
+        duplicate_normals = util.duplicates_by_predicate(norms_to_check, close_norm)
 
         for face_indices in face_indices_list:
             for i, (pos_idx, norm_idx, tex_coord_idx, ao_idx) in enumerate(face_indices):

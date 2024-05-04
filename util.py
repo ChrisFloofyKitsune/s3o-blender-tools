@@ -1,3 +1,4 @@
+import itertools
 from collections.abc import Iterable, Generator, Callable, Collection
 from itertools import islice
 from typing import TypeVar
@@ -44,22 +45,18 @@ def matrix_close_equals(m1, m2, /, *, threshold=0.0001) -> bool:
 
 
 def duplicates_by_predicate(
-    values: dict[int, T] | Collection[T],
+    values: dict[int, T] | Iterable[T],
     predicate: Callable[[T, T], bool]
 ) -> dict[int, int]:
     vals_dict: dict[int, T] = values if type(values) is dict else {i: v for i, v in enumerate(values)}
     duplicates: dict[int, int] = {}
-
-    for idx_1, val_1 in vals_dict.items():
+    
+    for (idx_1, val_1), (idx_2, val_2) in itertools.combinations(vals_dict.items(), 2):
         if idx_1 in duplicates:
             continue
 
-        for idx_2, val2 in vals_dict.items():
-            if idx_1 == idx_2:
-                continue
-
-            if predicate(val_1, val2):
-                duplicates[idx_2] = idx_1
+        if predicate(val_1, val_2):
+            duplicates[idx_2] = idx_1
 
     return duplicates
 
