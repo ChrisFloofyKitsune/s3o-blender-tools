@@ -19,6 +19,7 @@ class MainPanel(Panel):
         io_box.label(text="Import / Export")
         column = io_box.column()
         column.operator("s3o_tools.import_s3o", text="Import *.s3o")
+        column.operator("s3o_tools.export_s3o", text="Export *.s3o")
 
 
 def register():

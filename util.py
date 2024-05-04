@@ -2,8 +2,6 @@ from collections.abc import Iterable, Generator, Callable, Collection
 from itertools import islice
 from typing import TypeVar
 
-from mathutils import Vector
-
 T = TypeVar('T')
 
 
@@ -34,8 +32,15 @@ def extract_null_terminated_string(data: bytes, offset: int) -> str:
         return data[offset:data.index(b'\x00', offset)].decode()
 
 
-def close_to_comparator(*, threshold=0.001) -> Callable[[Vector, Vector], bool]:
-    return lambda v1, v2: all(abs(v1[i] - v2[i]) <= threshold for i in range(min(len(v1), len(v2))))
+def vector_close_equals(v1, v2, /, *, threshold=0.001) -> bool:
+    return all(abs(v1[i] - v2[i]) <= threshold for i in range(min(len(v1), len(v2))))
+
+
+def matrix_close_equals(m1, m2, /, *, threshold=0.0001) -> bool:
+    return all(
+        vector_close_equals(m1[i], m2[2], threshold=threshold)
+        for i in range(min(len(m1), len(m2)))
+    )
 
 
 def duplicates_by_predicate(
@@ -57,3 +62,13 @@ def duplicates_by_predicate(
                 duplicates[idx_2] = idx_1
 
     return duplicates
+
+
+def strip_suffix(blender_name: str):
+    if "." not in blender_name:
+        return blender_name
+
+    head, tail = blender_name.rsplit(".")
+    if tail.isnumeric():
+        return head
+    return blender_name

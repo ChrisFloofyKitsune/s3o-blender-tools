@@ -1,15 +1,17 @@
-import math
+import dataclasses
+from typing import Self
 
 import bmesh
 import bpy.types
+import bpy_extras.object_utils
 from bpy_extras import object_utils
 from mathutils import Vector, Matrix
-from mathutils.geometry import normal
 from . import util, vertex_cache
 from .s3o import S3O, S3OPiece, S3OVertex
+from .s3o_props import S3ORootProperties, S3OAimPointProperties
 from .util import batched
 
-TO_BLENDER_SPACE = Matrix(
+TO_FROM_BLENDER_SPACE = Matrix(
     (
         (-1, 0, 0, 0),
         (0, 0, 1, 0),
@@ -17,7 +19,7 @@ TO_BLENDER_SPACE = Matrix(
         (0, 0, 0, 1),
     )
 ).freeze()
-FROM_BLENDER_SPACE = TO_BLENDER_SPACE.inverted().freeze()
+""" This is just a couple of rotations. Also is it's own inverse! """
 
 
 def closest_vertex(vtable: list[S3OVertex], q: int, tolerance: float):  # returns the index of the closest vertex pos
@@ -49,7 +51,7 @@ def in_smoothing_group(piece: S3OPiece, face_a: int, face_b: int, tolerance: flo
     return shared == 2
 
 
-def create_blender_obj(
+def s3o_to_blender_obj(
     s3o: S3O,
     *,
     name="loaded_s3o",
@@ -70,10 +72,10 @@ def create_blender_obj(
 
     bpy.ops.object.select_all(action='DESELECT')
     root.select_set(True)
+    bpy.context.view_layer.objects.active = root
 
-    root.matrix_basis = TO_BLENDER_SPACE @ root.matrix_basis
+    root.matrix_basis = TO_FROM_BLENDER_SPACE @ root.matrix_basis
     root.location = (0, 0, 0)
-    # bpy.ops.object.transform_apply(location=False)
 
     return root
 
@@ -101,7 +103,7 @@ def recurse_add_s3o_piece_as_child(
     if len(piece.indices) < 3:
         new_obj = make_aim_point_from_s3o_empty(piece)
     else:
-        new_obj = make_obj_from_s3o_mesh(
+        new_obj = make_bl_obj_from_s3o_mesh(
             piece,
             merge_vertices=merge_vertices
         )
@@ -147,7 +149,7 @@ def set_aim_point_props(obj: bpy.types.Object, position: Vector, direction: Vect
     obj.s3o_aim_point.dir = direction
 
 
-def make_obj_from_s3o_mesh(
+def make_bl_obj_from_s3o_mesh(
     piece: S3OPiece,
     *,
     merge_vertices=True
@@ -163,23 +165,30 @@ def make_obj_from_s3o_mesh(
     # store this now so that values are not overlooked as a result of the de-duplication steps
     v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
 
-    close_pos = util.close_to_comparator(threshold=0.002)
-    close_norm = util.close_to_comparator(threshold=0.01)
-    close_tex_coord = util.close_to_comparator(threshold=0.01)
+    def close_pos(v1, v2):
+        return util.vector_close_equals(v1, v2, threshold=0.002)
 
-    # always combine all exact duplicates
-    duplicate_verts = util.duplicates_by_predicate(
-        p_vertices,
-        lambda v1, v2: (
-            close_pos(v1.position, v2.position)
-            and close_norm(v1.normal, v2.normal)
-            and close_tex_coord(v1.tex_coords, v2.tex_coords)
+    def close_norm(v1, v2):
+        return util.vector_close_equals(v1, v2, threshold=0.01)
+
+    def close_tex_coord(v1, v2):
+        return util.vector_close_equals(v1, v2, threshold=0.01)
+
+    duplicate_verts = []
+
+    if merge_vertices:
+        duplicate_verts = util.duplicates_by_predicate(
+            p_vertices,
+            lambda v1, v2: (
+                close_pos(v1.position, v2.position)
+                and close_norm(v1.normal, v2.normal)
+                and close_tex_coord(v1.tex_coords, v2.tex_coords)
+            )
         )
-    )
 
-    for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
-        if current_vert_index in duplicate_verts:
-            p_indices[i] = (duplicate_verts[current_vert_index], p_indices[i][1])
+        for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
+            if current_vert_index in duplicate_verts:
+                p_indices[i] = (duplicate_verts[current_vert_index], p_indices[i][1])
 
     type_face_indices = list[tuple[int, int, int, int]]
 
@@ -197,7 +206,7 @@ def make_obj_from_s3o_mesh(
     v_positions: dict[int, Vector] = {}
     v_normals: dict[int, Vector] = {}
 
-    # tex_coords (and the ambient occlusion packed in them) are always considered unique per vertex
+    # tex_coords are always considered unique per vertex
     v_tex_coords: dict[int, Vector] = {}
 
     for i, vertex in ((i, v) for i, v in enumerate(p_vertices) if i not in duplicate_verts):
@@ -261,31 +270,141 @@ def make_obj_from_s3o_mesh(
     return new_obj
 
 
-def adjust_obj_to_s3o_offsets(piece, curx, cury, curz):
-    # print 'adjusting offsets of',piece.name,': current:',curx,cury,curz,'parent offsets:',piece.parent_offset
-    for i in range(len(piece.vertices)):
-        v = piece.vertices[i]
+def blender_obj_to_s3o(obj: bpy.types.Object) -> S3O:
+    if not S3ORootProperties.poll(obj):
+        raise ValueError('Object to export must have s3o root properties')
 
-        v = ((v[0][0] - curx - piece.parent_offset[0], v[0][1] - cury - piece.parent_offset[1],
-        v[0][2] - curz - piece.parent_offset[2]), v[1], v[2])
-        # print 'offset:',v[0],piece.vertices[0][0]
-        piece.vertices[i] = v
-    for child in piece.children:
-        adjust_obj_to_s3o_offsets(
-            child,
-            curx + piece.parent_offset[0],
-            cury + piece.parent_offset[1],
-            curz + piece.parent_offset[2]
-        )
+    mesh_count = 0
+    if (mesh_count := sum(1 for c in obj.children if c.type == 'MESH')) != 1:
+        raise ValueError(f'Expected only ONE child of the root object to have a mesh, found {mesh_count}')
+
+    props: S3ORootProperties = obj.s3o_root
+
+    s3o = S3O()
+
+    s3o.collision_radius = props.collision_radius
+    s3o.height = props.height
+    s3o.midpoint = props.midpoint
+
+    s3o.texture_path_1 = props.texture_path_1
+    s3o.texture_path_2 = props.texture_path_2
+
+    s3o.root_piece = blender_obj_to_piece(
+        next(c for c in obj.children if c.type == 'MESH')
+    )
+
+    return s3o
 
 
-def recursively_optimize_pieces(piece):
-    if piece.indices is list and len(piece.indices) > 4:
-        optimize_piece(piece)
-        fix_zero_normals_piece(piece)
+def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
 
-    for child in piece.children:
-        recursively_optimize_pieces(child)
+    if not ((is_ap := S3OAimPointProperties.poll(obj)) or obj.type == 'MESH') or obj.parent is None:
+        return None
+
+    piece = S3OPiece()
+    piece.primitive_type = S3OPiece.PrimitiveType.Triangles
+
+    piece.name = util.strip_suffix(obj.name)
+
+    offset = obj.matrix_world.translation - obj.parent.matrix_world.translation
+    piece.parent_offset = offset @ TO_FROM_BLENDER_SPACE
+
+    to_world_space = obj.matrix_world.inverted_safe()
+    to_world_space.translation = (0, 0, 0)
+
+    if is_ap:
+        ap_props: S3OAimPointProperties = obj.s3o_aim_point
+        position = (ap_props.pos @ to_world_space) @ TO_FROM_BLENDER_SPACE
+        direction = (ap_props.dir @ to_world_space) @ TO_FROM_BLENDER_SPACE
+        direction.normalize()
+
+        verts: list[S3OVertex] = []
+        if not util.vector_close_equals(position, (0, 0, 0)):
+            verts.append(S3OVertex(position))
+            verts.append(S3OVertex(position + direction))
+        elif not util.vector_close_equals(direction, (0, 0, 1)):
+            verts.append(S3OVertex(direction))
+    else:  # is mesh
+        tmp_obj: bpy.types.Object | None = None
+        tmp_mesh: bpy.types.Mesh | None = None
+        try:
+            tmp_mesh: bpy.types.Mesh = obj.data.copy()
+            tmp_obj = bpy_extras.object_utils.object_data_add(bpy.context, tmp_mesh)
+            bpy.ops.object.select_all(action='DESELECT')
+            tmp_obj.select_set(True)
+
+            tmp_obj.matrix_world = obj.matrix_world
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.quads_convert_to_tris()
+            bpy.ops.mesh.delete_loose()
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            tmp_mesh.transform(TO_FROM_BLENDER_SPACE)
+
+            uv_layer: bpy.types.MeshUVLoopLayer = tmp_mesh.uv_layers.active
+            ao_layer: bpy.types.FloatColorAttribute = tmp_mesh.color_attributes.get('ambient_occlusion', None)
+
+            @dataclasses.dataclass(eq=True, frozen=True, slots=True)
+            class FaceCornerData:
+                uv: (float, float)
+                ao: float
+                norm: (float, float, float)
+                v_idx: int
+
+                @classmethod
+                def from_loop_index(cls, idx: int) -> Self:
+                    uv = tuple(uv_layer.uv[idx].vector)
+                    ao = ao_layer.data[idx].color[0]
+                    norm = tuple(tmp_mesh.corner_normals[idx].vector)
+                    v_idx = tmp_mesh.loops[idx].vertex_index
+                    return FaceCornerData(uv, ao, norm, v_idx)
+
+            vertex_map: dict[FaceCornerData, int] = {}
+
+            loop_to_s3o_idx: list[int] = []
+            s3o_idx_to_data: list[FaceCornerData] = []
+
+            for loop_index in range(len(tmp_mesh.loops)):
+                fc_data = FaceCornerData.from_loop_index(loop_index)
+                s3o_index = vertex_map.setdefault(fc_data, len(vertex_map))
+                loop_to_s3o_idx.append(s3o_index)
+                while len(s3o_idx_to_data) <= s3o_index:
+                    s3o_idx_to_data.append(fc_data)
+
+            for data in s3o_idx_to_data:
+                new_vert = S3OVertex(
+                    tmp_mesh.vertices[data.v_idx].co.copy(),
+                    Vector(data.norm),
+                    Vector(data.uv)
+                )
+                new_vert.ambient_occlusion = data.ao
+                new_vert.freeze()
+                piece.vertices.append(new_vert)
+
+            for loop_idx in range(len(tmp_mesh.loops)):
+                idx = loop_to_s3o_idx[loop_idx]
+                assert 0 <= idx < len(piece.vertices)
+                piece.indices.append(idx)
+
+            optimize_piece(piece)
+        except Exception as err:
+            print("!!! ERROR exporting mesh!!!")
+            print(f"{obj.name} --> {piece.name}")
+            raise err
+
+        if tmp_obj is not None:
+            bpy.data.objects.remove(tmp_obj, do_unlink=False)
+        if tmp_mesh is not None:
+            bpy.data.meshes.remove(tmp_mesh, do_unlink=False)
+
+    piece.children = [
+        p for p in (blender_obj_to_piece(c) for c in obj.children) if p is not None
+    ]
+
+    return piece
 
 
 def optimize_piece(piece: S3OPiece):
@@ -293,7 +412,9 @@ def optimize_piece(piece: S3OPiece):
     new_indices = []
     print('[INFO]', 'Optimizing:', piece.name)
     for index in piece.indices:
+        print(f'{index} of {len(piece.vertices) - 1}')
         vertex = piece.vertices[index]
+        vertex.freeze()
         if vertex not in remap:
             remap[vertex] = len(remap)
         new_indices.append(remap[vertex])
@@ -329,102 +450,3 @@ def optimize_piece(piece: S3OPiece):
 
     piece.indices = new_indices
     piece.vertices = new_vertices
-
-
-# if there are zero vertices, the emit direction is 0,0,1, the emit position is the origin of the piece
-# if there is 1 vertex, the emit dir is the vector from the origin to the the position of the first vertex
-#    the emit position is the origin of the piece
-# if there is more than one, then the emit vector is the vector pointing from v[0] to v[1],
-#    and the emit position is v[0]
-def fix_zero_normals_piece(piece: S3OPiece):
-    if len(piece.indices) == 0:
-        return
-
-    badnormals = 0
-    fixednormals = 0
-    nonunitnormals = 0
-
-    DEFAULT_NORMAL = Vector((0, 1, 0))
-
-    piece.triangulate_faces()
-
-    verts = piece.vertices
-    idxs = piece.indices
-
-    for v_idx in range(len(verts)):
-        vertex = verts[v_idx]
-        normal_length = vertex.normal.length
-        if normal_length < 0.01:  # nearly 0 normal
-            badnormals += 1
-            if v_idx not in idxs:
-                # this is some sort of degenerate vertex, just replace it's normal with [0,1,0]
-                verts[v_idx] = vertex.with_normal(DEFAULT_NORMAL.copy())
-                fixednormals += 1
-            else:
-                for f_idx in range(0, len(idxs), 3):
-                    if v_idx in idxs[f_idx:min(len(idxs), f_idx + 3)]:
-                        new_normal = Vector.cross(
-                            verts[idxs[f_idx + 1]].position - verts[idxs[f_idx]].position,
-                            verts[idxs[f_idx + 2]].position - verts[idxs[f_idx]].position
-                        )
-
-                        if new_normal.length < 0.001:
-                            piece.vertices[v_idx] = vertex.with_normal(DEFAULT_NORMAL.copy())
-                        else:
-                            piece.vertices[v_idx] = vertex.with_normal(vertex.normal.normalized())
-                        fixednormals += 1
-                        break
-        elif normal_length < 0.9 or normal_length > 1.1:
-            nonunitnormals += 1
-            piece.vertices[v_idx] = vertex.with_normal(vertex.normal.normalized())
-
-    if badnormals > 0:
-        print('[WARN]', 'Bad normals:', badnormals, 'Fixed:', fixednormals)
-        if badnormals != fixednormals:
-            print('[WARN]', 'NOT ALL ZERO NORMALS fixed!!!!!')  # this isn't possible with above code anyway :/
-
-    if nonunitnormals > 0:
-        print('[WARN]', nonunitnormals, 'fixed to unit length')
-
-
-def recalculate_normals(piece: S3OPiece, smooth_angle: float, recursive=False):
-    piece.triangulate_faces()
-
-    # build a list of vertices, each with their list of faces:
-    if len(piece.indices) > 4:
-        # explode vertices uniquely
-        new_vertices = []
-        new_indices = []
-        for i, vi in enumerate(piece.indices):
-            new_vertices.append(piece.vertices[vi])
-            new_indices.append(i)
-        piece.vertices = new_vertices
-        piece.indices = new_indices
-
-        faces_per_vertex = []
-        for i, v1 in enumerate(piece.vertices):
-            faces_per_vertex.append([])
-            for j, v2 in enumerate(piece.vertices):
-                if (v1.position - v2.position).length < 0.05:
-                    faces_per_vertex[i].append(j)
-
-        for i, v1 in enumerate(piece.vertices):
-            if len(faces_per_vertex[i]) > 0:
-                face_index = int(math.floor(i / 3) * 3)
-                my_normal = normal(piece.vertices[face_index:face_index + 2])
-
-                mixed_norm = Vector((0, 0, 0))
-                for face_vertex in faces_per_vertex[i]:
-                    # get face:
-                    face_index = int(math.floor(face_vertex / 3) * 3)
-                    mixed_norm += normal(piece.vertices[face_index:face_index + 2])
-                mixed_norm.normalize()
-
-                if my_normal.angle(mixed_norm) <= smooth_angle:
-                    piece.vertices[i] = piece.vertices[i].with_normal(mixed_norm)
-                else:
-                    piece.vertices[i] = piece.vertices[i].with_normal(my_normal)
-
-    if recursive:
-        for child in piece.children:
-            recalculate_normals(child, smooth_angle, recursive)
