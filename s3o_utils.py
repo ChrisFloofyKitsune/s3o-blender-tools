@@ -319,6 +319,8 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
             uv_layer: bpy.types.MeshUVLoopLayer = tmp_mesh.uv_layers.active
             ao_layer: bpy.types.FloatColorAttribute = tmp_mesh.color_attributes.get('ambient_occlusion', None)
 
+            # face corner (aka loop) walking based on the .ply export implementation at:
+            # https://github.com/blender/blender/blob/main/source/blender/io/ply/exporter/ply_export_load_plydata.cc
             @dataclasses.dataclass(eq=True, frozen=True, slots=True)
             class FaceCornerData:
                 uv: (float, float)
@@ -327,11 +329,11 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
                 v_idx: int
 
                 @classmethod
-                def from_loop_index(cls, idx: int) -> Self:
-                    uv = tuple(uv_layer.uv[idx].vector)
-                    ao = ao_layer.data[idx].color[0]
-                    norm = tuple(tmp_mesh.corner_normals[idx].vector)
-                    v_idx = tmp_mesh.loops[idx].vertex_index
+                def from_loop_index(cls, l_idx: int) -> Self:
+                    uv = tuple(uv_layer.uv[l_idx].vector)
+                    ao = ao_layer.data[l_idx].color[0]
+                    norm = tuple(tmp_mesh.corner_normals[l_idx].vector)
+                    v_idx = tmp_mesh.loops[l_idx].vertex_index
                     return FaceCornerData(uv, ao, norm, v_idx)
 
             vertex_map: dict[FaceCornerData, int] = {}
@@ -384,7 +386,6 @@ def optimize_piece(piece: S3OPiece):
     new_indices = []
     print('[INFO]', 'Optimizing:', piece.name)
     for index in piece.indices:
-        print(f'{index} of {len(piece.vertices) - 1}')
         vertex = piece.vertices[index]
         vertex.freeze()
         if vertex not in remap:
