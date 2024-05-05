@@ -1,0 +1,2 @@
+based on code by Beherith / the Beyond All Reason team
+https://github.com/beyond-all-reason/OBJ2S3O
