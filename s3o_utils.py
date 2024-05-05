@@ -5,21 +5,11 @@ import bmesh
 import bpy.types
 import bpy_extras.object_utils
 from bpy_extras import object_utils
-from mathutils import Vector, Matrix
+from mathutils import Vector
 from . import util, vertex_cache
 from .s3o import S3O, S3OPiece, S3OVertex
 from .s3o_props import S3ORootProperties, S3OAimPointProperties
-from .util import batched
-
-TO_FROM_BLENDER_SPACE = Matrix(
-    (
-        (-1, 0, 0, 0),
-        (0, 0, 1, 0),
-        (0, 1, 0, 0),
-        (0, 0, 0, 1),
-    )
-).freeze()
-""" This is just a couple of rotations. Also is it's own inverse! """
+from .util import batched, TO_FROM_BLENDER_SPACE
 
 
 def s3o_to_blender_obj(
@@ -35,6 +25,9 @@ def s3o_to_blender_obj(
     bpy.ops.object.empty_add(type='ARROWS', radius=s3o.collision_radius / 4)
     root = bpy.context.object
     root.name = name
+    root.matrix_basis = TO_FROM_BLENDER_SPACE @ root.matrix_basis
+    root.location = (0, 0, 0)
+
     set_root_props(root, s3o, name)
 
     recurse_add_s3o_piece_as_child(
@@ -44,9 +37,6 @@ def s3o_to_blender_obj(
     bpy.ops.object.select_all(action='DESELECT')
     root.select_set(True)
     bpy.context.view_layer.objects.active = root
-
-    root.matrix_basis = TO_FROM_BLENDER_SPACE @ root.matrix_basis
-    root.location = (0, 0, 0)
 
     return root
 

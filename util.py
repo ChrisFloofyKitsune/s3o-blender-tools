@@ -1,7 +1,19 @@
 import itertools
-from collections.abc import Iterable, Generator, Callable, Collection
+from collections.abc import Iterable, Generator, Callable
 from itertools import islice
 from typing import TypeVar
+
+from mathutils import Matrix
+
+TO_FROM_BLENDER_SPACE = Matrix(
+    (
+        (-1, 0, 0, 0),
+        (0, 0, 1, 0),
+        (0, 1, 0, 0),
+        (0, 0, 0, 1),
+    )
+).freeze()
+""" Ends up being just a couple of rotations. Also is it's own inverse! """
 
 T = TypeVar('T')
 
@@ -40,7 +52,7 @@ def vector_close_equals(v1, v2, /, *, threshold=0.001) -> bool:
 def matrix_close_equals(m1, m2, /, *, threshold=0.0001) -> bool:
     return all(
         vector_close_equals(m1[i], m2[2], threshold=threshold)
-        for i in range(min(len(m1), len(m2)))
+            for i in range(min(len(m1), len(m2)))
     )
 
 
@@ -50,7 +62,7 @@ def duplicates_by_predicate(
 ) -> dict[int, int]:
     vals_dict: dict[int, T] = values if type(values) is dict else {i: v for i, v in enumerate(values)}
     duplicates: dict[int, int] = {}
-    
+
     for (idx_1, val_1), (idx_2, val_2) in itertools.combinations(vals_dict.items(), 2):
         if idx_1 in duplicates:
             continue
