@@ -7,7 +7,7 @@ import bpy
 from bpy.props import EnumProperty, FloatProperty, FloatVectorProperty, StringProperty, PointerProperty, BoolProperty
 from bpy.types import PropertyGroup, Object, Context
 from bpy_extras import object_utils
-from mathutils import Vector
+from mathutils import Vector, Quaternion, Matrix
 from . import util
 
 
@@ -49,7 +49,7 @@ class S3ORootProperties(S3OPropertyGroup):
 
         try:
             self.being_updated = True
-            obj: bpy.types.Object = self.id_data
+            obj: Object = self.id_data
 
             col_radius_pl = get_or_create_placeholder_empty(
                 obj, context,
@@ -57,8 +57,11 @@ class S3ORootProperties(S3OPropertyGroup):
             )
             col_radius_pl.empty_display_type = 'SPHERE'
             col_radius_pl.empty_display_size = self.collision_radius
-            col_radius_pl.scale = (1, 1, 1)
-            col_radius_pl.location = self.midpoint @ util.TO_FROM_BLENDER_SPACE @ obj.matrix_basis
+            col_radius_pl.matrix_basis = Matrix.LocRotScale(
+                self.midpoint @ util.TO_FROM_BLENDER_SPACE @ obj.matrix_basis,
+                Quaternion.identity(),
+                Vector((1, 1, 1))
+            )
 
             height_pl = get_or_create_placeholder_empty(
                 obj, context,
@@ -66,10 +69,11 @@ class S3ORootProperties(S3OPropertyGroup):
             )
             height_pl.empty_display_type = 'CIRCLE'
             height_pl.empty_display_size = self.collision_radius / 2
-            height_pl.scale = (1, 1, 1)
-            height_pl.location = Vector((self.midpoint.x, self.height, self.midpoint.z))
-            height_pl.location = height_pl.location @ util.TO_FROM_BLENDER_SPACE @ obj.matrix_basis
-            height_pl.rotation_quaternion = obj.matrix_basis.col[2].xyz.rotation_difference((0, 1, 0))
+            height_pl.matrix_basis = Matrix.LocRotScale(
+                Vector((self.midpoint.x, self.height, self.midpoint.z)) @ util.TO_FROM_BLENDER_SPACE @ obj.matrix_basis,
+                obj.matrix_basis.col[2].xyz.rotation_difference((0, 1, 0)),
+                Vector((1, 1, 1))
+            )
         finally:
             self.being_updated = False
 
@@ -99,6 +103,7 @@ class S3ORootProperties(S3OPropertyGroup):
     s3o_name: StringProperty(
         name="Name"
     )
+
     collision_radius: FloatProperty(
         name="Collision Radius",
         subtype="DISTANCE",
@@ -135,6 +140,13 @@ class S3ORootProperties(S3OPropertyGroup):
 
 class S3OAimPointProperties(S3OPropertyGroup):
     empty_type = 'AIM_POINT'
+    placeholder_tag = 'aim_ray'
+
+    def update_from_prop(self, context: Context):
+        ...
+
+    def update_from_placeholder(self, tag: str, placeholder_obj: Object):
+        ...
 
     pos: FloatVectorProperty(
         name="Aim Position",
@@ -193,7 +205,7 @@ def s3o_placeholder_depsgraph_listener(*_):
     if responding_to_depsgraph:
         return
 
-    # we only care of the updates started with a placeholder object
+    # we only care if the updates started with a placeholder object
     update = next(iter(depsgraph.updates), None)
     if update is None or not S3OPlaceholderProperties.poll(update.id):
         return
@@ -210,7 +222,7 @@ def s3o_placeholder_depsgraph_listener(*_):
 
         if S3ORootProperties.poll(parent) and not parent.s3o_root.being_updated:
             parent.s3o_root.update_from_placeholder(tag, obj)
-        elif S3OAimPointProperties.poll(parent):
+        elif S3OAimPointProperties.poll(parent) and not parent.s3o_aim_point.being_updated:
             parent.s3o_aim_point.update_from_placeholder(tag, obj)
     finally:
         insanity_counter -= 1
