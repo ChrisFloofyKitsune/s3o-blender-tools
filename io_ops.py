@@ -7,7 +7,7 @@ from .props import S3ORootProperties
 
 
 class ImportSpring3dObject(Operator, ImportHelper):
-    """ Import *.s3o file """
+    """Import from a *.s3o file"""
     bl_idname = "s3o_tools.import_s3o"
     bl_label = "Spring/Recoil (*.s3o)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -59,7 +59,7 @@ class ImportSpring3dObject(Operator, ImportHelper):
 
 
 class ExportSpring3dObject(Operator, ExportHelper):
-    """ Export a *.s3o file """
+    """Export a S3O Root Object a *.s3o file"""
     bl_idname = "s3o_tools.export_s3o"
     bl_label = "Spring/Recoil (*.s3o)"
     bl_options = {'REGISTER', 'UNDO'}

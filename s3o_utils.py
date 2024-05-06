@@ -22,13 +22,15 @@ def s3o_to_blender_obj(
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action='DESELECT')
 
-    bpy.ops.object.empty_add(type='ARROWS', radius=s3o.collision_radius / 4)
+    bpy.ops.s3o_tools.add_s3o_root(
+        name=name,
+        collision_radius=s3o.collision_radius,
+        height=s3o.height,
+        midpoint=s3o.midpoint,
+        texture_path_1=s3o.texture_path_1,
+        texture_path_2=s3o.texture_path_2,
+    )
     root = bpy.context.object
-    root.name = name
-    root.rotation_mode = 'YXZ'
-    root.matrix_basis = TO_FROM_BLENDER_SPACE
-
-    set_root_props(root, s3o, name)
 
     recurse_add_s3o_piece_as_child(
         s3o.root_piece, root, merge_vertices=merge_vertices
@@ -41,19 +43,6 @@ def s3o_to_blender_obj(
     bpy.ops.s3o_tools.refresh_s3o_props()
 
     return root
-
-
-def set_root_props(obj: bpy.types.Object, s3o: S3O, name: str):
-    obj.s3o_empty_type = 'ROOT'
-
-    obj.s3o_root.s3o_name = name
-
-    obj.s3o_root.collision_radius = s3o.collision_radius
-    obj.s3o_root.height = s3o.height
-    obj.s3o_root.midpoint = s3o.midpoint
-
-    obj.s3o_root.texture_path_1 = s3o.texture_path_1
-    obj.s3o_root.texture_path_2 = s3o.texture_path_2
 
 
 def recurse_add_s3o_piece_as_child(

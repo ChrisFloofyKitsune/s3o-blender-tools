@@ -26,7 +26,12 @@ class MainPanel(Panel):
         ...
 
     def panel_add(self, layout: UILayout):
-        ...
+        (header, body) = layout.panel('s3o_add')
+        header.label(text="Add")
+        if body is not None:
+            col = body.column()
+            col.operator('s3o_tools.add_s3o_root')
+            col.operator('s3o_tools.add_s3o_aim_point')
 
     def panel_import_export(self, layout: UILayout):
         (header, body) = layout.panel('s3o_import_export')
