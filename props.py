@@ -6,7 +6,7 @@ import bpy
 from bpy.props import EnumProperty, FloatProperty, FloatVectorProperty, StringProperty, PointerProperty, BoolProperty
 from bpy.types import PropertyGroup, Object, Context
 from bpy_extras import object_utils
-from mathutils import Vector, Quaternion, Matrix, Euler
+from mathutils import Vector, Matrix, Euler
 from . import util
 
 
@@ -17,7 +17,7 @@ class S3OPropertyGroup(PropertyGroup):
     def update(self, context: Context | None):
         ...
 
-    def update_from_placeholder(self, tag: str, placeholder_obj: Object):
+    def update_from_placeholder(self, tag: str, obj: Object):
         ...
 
     @classmethod
@@ -185,11 +185,19 @@ class S3OAimPointProperties(S3OPropertyGroup):
         finally:
             self.being_updated = False
 
-    def update_from_placeholder(self, tag: str, placeholder_obj: Object):
+    def update_from_placeholder(self, tag: str, obj: Object):
         if self.being_updated or tag != S3OAimPointProperties.placeholder_tag:
             return
-        print(tag)
-        ...
+
+        new_pos = util.TO_FROM_BLENDER_SPACE @ (
+            obj.matrix_world.translation - self.id_data.matrix_world.translation
+        )
+
+        if not self.align_to_rotation:
+            new_dir = obj.matrix_world.normalized().col[2].xyz @ util.TO_FROM_BLENDER_SPACE
+            self.inner_dir = new_dir
+
+        self.pos = new_pos
 
     pos: FloatVectorProperty(
         name="Aim Position",
