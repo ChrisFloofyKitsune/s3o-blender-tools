@@ -7,8 +7,8 @@ import bpy_extras.object_utils
 from bpy_extras import object_utils
 from mathutils import Vector
 from . import util, vertex_cache
+from .props import S3ORootProperties, S3OAimPointProperties
 from .s3o import S3O, S3OPiece, S3OVertex
-from .s3o_props import S3ORootProperties, S3OAimPointProperties
 from .util import batched, TO_FROM_BLENDER_SPACE
 
 
@@ -25,8 +25,8 @@ def s3o_to_blender_obj(
     bpy.ops.object.empty_add(type='ARROWS', radius=s3o.collision_radius / 4)
     root = bpy.context.object
     root.name = name
-    root.matrix_basis = TO_FROM_BLENDER_SPACE @ root.matrix_basis
-    root.location = (0, 0, 0)
+    root.rotation_mode = 'YXZ'
+    root.matrix_basis = TO_FROM_BLENDER_SPACE
 
     set_root_props(root, s3o, name)
 
@@ -71,6 +71,7 @@ def recurse_add_s3o_piece_as_child(
             merge_vertices=merge_vertices
         )
 
+    new_obj.rotation_mode = 'YXZ'
     new_obj.location = piece.parent_offset
     new_obj.parent = obj
 

@@ -3,13 +3,13 @@ from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator, Context, Menu
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from . import s3o, s3o_utils
-from .s3o_props import S3ORootProperties
+from .props import S3ORootProperties
 
 
 class ImportSpring3dObject(Operator, ImportHelper):
     """ Import *.s3o file """
     bl_idname = "s3o_tools.import_s3o"
-    bl_label = "Import *.s3o file"
+    bl_label = "Spring/Recoil (*.s3o)"
     bl_options = {'REGISTER', 'UNDO'}
 
     filename_ext = ".s3o"
@@ -22,14 +22,14 @@ class ImportSpring3dObject(Operator, ImportHelper):
 
     merge_vertices: BoolProperty(
         name="Merge Vertices",
-        description="Merge Vertices that share the same position.",
+        description="Merge Vertices that share the same position",
         default=True,
     )
 
     unit_textures_folder: StringProperty(
         name="Unit Textures Folder",
         description="Location of the unit textures."
-                    "Leave blank to let the importer search for it automatically.",
+                    "Leave blank to let the importer search for it automatically",
         default="",
         subtype="DIR_PATH",
     )
@@ -61,7 +61,7 @@ class ImportSpring3dObject(Operator, ImportHelper):
 class ExportSpring3dObject(Operator, ExportHelper):
     """ Export a *.s3o file """
     bl_idname = "s3o_tools.export_s3o"
-    bl_label = "Export *.s3o file"
+    bl_label = "Spring/Recoil (*.s3o)"
     bl_options = {'REGISTER', 'UNDO'}
 
     filename_ext = ".s3o"

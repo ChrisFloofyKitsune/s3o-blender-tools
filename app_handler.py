@@ -2,7 +2,7 @@ import warnings
 
 import bpy
 from bpy.types import DepsgraphUpdate
-from .s3o_props import S3ORootProperties, S3OAimPointProperties, S3OPlaceholderProperties
+from .props import S3ORootProperties, S3OAimPointProperties, S3OPlaceholderProperties
 
 responding_to_depsgraph = False
 insanity_counter = 0

@@ -11,8 +11,10 @@ class MainPanel(Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-
-        self.panel_draw_settings(layout)
+        
+        layout.operator_menu_enum("s3o_tools.set_all_rotation_modes", 'mode')
+        
+        self.panel_window_settings(layout)
 
         if context.mode != "OBJECT":
             return
@@ -20,7 +22,7 @@ class MainPanel(Panel):
         self.panel_add(layout)
         self.panel_import_export(layout)
 
-    def panel_draw_settings(self, layout: UILayout):
+    def panel_window_settings(self, layout: UILayout):
         ...
 
     def panel_add(self, layout: UILayout):

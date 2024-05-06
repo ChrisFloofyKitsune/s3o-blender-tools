@@ -254,6 +254,7 @@ def get_or_create_placeholder_empty(
         placeholder = object_utils.object_data_add(context, None, name=f'{parent_name}.{tag}')
         placeholder.s3o_empty_type = 'PLACEHOLDER'
         placeholder.s3o_placeholder.tag = tag
+        placeholder.rotation_mode = 'YXZ'
         placeholder.parent = parent_obj
 
     return placeholder
