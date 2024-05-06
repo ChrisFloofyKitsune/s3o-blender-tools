@@ -351,10 +351,8 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
             print(f"{obj.name} --> {piece.name}")
             raise err
 
-        if tmp_obj is not None:
-            bpy.data.objects.remove(tmp_obj, do_unlink=False)
         if tmp_mesh is not None:
-            bpy.data.meshes.remove(tmp_mesh, do_unlink=False)
+            bpy.data.meshes.remove(tmp_mesh)
 
     piece.children = [
         p for p in (blender_obj_to_piece(c) for c in obj.children) if p is not None
