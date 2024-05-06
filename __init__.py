@@ -38,18 +38,21 @@ module.register()
 import importlib
 import sys
 from glob import glob
+import time
 
 child_modules = {mod_name: f'{__name__}.{mod_name}' for mod_name in (
     p.replace('\\', '.').replace('/', '.').removesuffix('.py')
     for p in glob("**/[!_]*.py", root_dir=__path__[0], recursive=True)
 )}
 
+print(f'{time.asctime()} (RE)LOADING: {__name__}')
+
 for mod_name, full_name in child_modules.items():
     if full_name in sys.modules:
-        print('Reload', full_name)
+        # print('Reload', full_name)
         importlib.reload(sys.modules[full_name])
     else:
-        print('Initial load', full_name)
+        # print('Initial load', full_name)
         parent, name = (
             mod_name.rsplit('.', 1)
             if '.' in mod_name else ('', mod_name)

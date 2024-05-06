@@ -6,22 +6,6 @@ from . import s3o, s3o_utils
 from .s3o_props import S3ORootProperties
 
 
-def register():
-    bpy.utils.register_class(ImportSpring3dObject)
-    bpy.utils.register_class(ExportSpring3dObject)
-
-    bpy.types.TOPBAR_MT_file_import.append(ImportSpring3dObject.menu_func)
-    bpy.types.TOPBAR_MT_file_export.append(ExportSpring3dObject.menu_func)
-
-
-def unregister():
-    bpy.utils.unregister_class(ImportSpring3dObject)
-    bpy.utils.unregister_class(ExportSpring3dObject)
-
-    bpy.types.TOPBAR_MT_file_import.remove(ImportSpring3dObject.menu_func)
-    bpy.types.TOPBAR_MT_file_export.remove(ExportSpring3dObject.menu_func)
-
-
 class ImportSpring3dObject(Operator, ImportHelper):
     """ Import *.s3o file """
     bl_idname = "s3o_tools.import_s3o"
@@ -104,3 +88,19 @@ class ExportSpring3dObject(Operator, ExportHelper):
             output.write(s3o.serialize())
 
         return {'FINISHED'}
+
+
+def register():
+    bpy.utils.register_class(ImportSpring3dObject)
+    bpy.utils.register_class(ExportSpring3dObject)
+
+    bpy.types.TOPBAR_MT_file_import.append(ImportSpring3dObject.menu_func)
+    bpy.types.TOPBAR_MT_file_export.append(ExportSpring3dObject.menu_func)
+
+
+def unregister():
+    bpy.utils.unregister_class(ImportSpring3dObject)
+    bpy.utils.unregister_class(ExportSpring3dObject)
+
+    bpy.types.TOPBAR_MT_file_import.remove(ImportSpring3dObject.menu_func)
+    bpy.types.TOPBAR_MT_file_export.remove(ExportSpring3dObject.menu_func)

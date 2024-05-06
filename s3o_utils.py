@@ -38,6 +38,8 @@ def s3o_to_blender_obj(
     root.select_set(True)
     bpy.context.view_layer.objects.active = root
 
+    bpy.ops.s3o_tools.refresh_s3o_props()
+
     return root
 
 
@@ -96,7 +98,7 @@ def make_aim_point_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
         case _:
             pass
 
-    bpy.ops.object.empty_add(type='SPHERE', radius=0.5)
+    bpy.ops.object.empty_add(type='SPHERE', radius=1.5)
     aim_point = bpy.context.object
     aim_point.name = s3o_piece.name
     set_aim_point_props(aim_point, aim_position, aim_dir)
@@ -276,9 +278,8 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
 
     if is_ap:
         ap_props: S3OAimPointProperties = obj.s3o_aim_point
-        position = (ap_props.pos @ to_world_space) @ TO_FROM_BLENDER_SPACE
-        direction = (ap_props.dir @ to_world_space) @ TO_FROM_BLENDER_SPACE
-        direction.normalize()
+        position = ap_props.pos
+        direction = ap_props.dir.normalized()
 
         verts: list[S3OVertex] = []
         if not util.vector_close_equals(position, (0, 0, 0)):
@@ -286,6 +287,7 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
             verts.append(S3OVertex(position + direction))
         elif not util.vector_close_equals(direction, (0, 0, 1)):
             verts.append(S3OVertex(direction))
+
     else:  # is mesh
         tmp_obj: bpy.types.Object | None = None
         tmp_mesh: bpy.types.Mesh | None = None

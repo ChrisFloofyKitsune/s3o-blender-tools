@@ -1,5 +1,5 @@
 import bpy.utils
-from bpy.types import Panel, Context
+from bpy.types import Panel, Context, UILayout
 
 
 class MainPanel(Panel):
@@ -10,16 +10,29 @@ class MainPanel(Panel):
     bl_category = "S3O"
 
     def draw(self, context: Context):
+        layout = self.layout
+
+        self.panel_draw_settings(layout)
+
         if context.mode != "OBJECT":
             return
 
-        layout = self.layout
+        self.panel_add(layout)
+        self.panel_import_export(layout)
 
-        io_box = layout.box()
-        io_box.label(text="Import / Export")
-        column = io_box.column()
-        column.operator("s3o_tools.import_s3o", text="Import *.s3o")
-        column.operator("s3o_tools.export_s3o", text="Export *.s3o")
+    def panel_draw_settings(self, layout: UILayout):
+        ...
+
+    def panel_add(self, layout: UILayout):
+        ...
+
+    def panel_import_export(self, layout: UILayout):
+        (header, body) = layout.panel('s3o_import_export')
+        header.label(text="Import / Export")
+        if body is not None:
+            col = body.column()
+            col.operator("s3o_tools.import_s3o", text="Import *.s3o")
+            col.operator("s3o_tools.export_s3o", text="Export *.s3o")
 
 
 def register():
