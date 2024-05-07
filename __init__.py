@@ -3,7 +3,7 @@ bl_info = {
     'author': 'ChrisFloofyKitsune, based on s3o code by Beherith and Muon',
     "description": "Tools for working with *.s3o files.",
     'category': 'Import-Export',
-    'version': (0, 0, 1),
+    'version': (0, 1, 0),
     'blender': (4, 1, 0)
 }
 
