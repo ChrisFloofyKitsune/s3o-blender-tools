@@ -1,10 +1,12 @@
+import os.path
 from collections.abc import Iterable, Generator
 from itertools import islice
-from typing import TypeVar
+from typing import TypeVar, ContextManager
 
 import numpy as np
 import numpy.typing as npt
 
+import bpy
 from mathutils import Matrix
 
 TO_FROM_BLENDER_SPACE = Matrix(
@@ -94,3 +96,12 @@ def strip_suffix(blender_name: str):
     if tail.isnumeric():
         return head
     return blender_name
+
+
+def library_load_addon_assets() -> ContextManager:
+    dirname = os.path.dirname(os.path.abspath(__file__))
+    return bpy.data.libraries.load(
+        filepath=os.path.join(dirname, 'addon_assets.blend'),
+        assets_only=True,
+        link=True
+    )

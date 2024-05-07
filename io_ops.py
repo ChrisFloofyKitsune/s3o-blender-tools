@@ -1,8 +1,11 @@
+import os.path
+import traceback
+
 import bpy
 from bpy.props import StringProperty, BoolProperty
-from bpy.types import Operator, Context, Menu
+from bpy.types import Operator, Context, Menu, Event
 from bpy_extras.io_utils import ImportHelper, ExportHelper
-from . import s3o, s3o_utils
+from . import s3o, s3o_utils, util
 from .props import S3ORootProperties
 
 
@@ -53,7 +56,22 @@ class ImportSpring3dObject(Operator, ImportHelper):
             merge_vertices=self.merge_vertices
         )
 
-        # TODO: load textures
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
+        if self.unit_textures_folder == '':
+            search_path = os.path.split(self.filepath)[0]
+            attempts_left = 4
+            while attempts_left > 0:
+                if os.path.exists(tex_dir := os.path.join(search_path, 'unittextures')):
+                    bpy.ops.s3o_tools.import_textures_exec(
+                        directory=tex_dir,
+                        set_globally=False,
+                    )
+                    break
+                search_path = os.path.split(search_path)[0]
+                attempts_left -= 1
 
         return {'FINISHED'}
 
@@ -90,9 +108,129 @@ class ExportSpring3dObject(Operator, ExportHelper):
         return {'FINISHED'}
 
 
+class ImportTextures(Operator):
+    """Select folder to import textures from"""
+    bl_idname = "s3o_tools.import_textures"
+    bl_label = "Import Textures"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(
+        name="Textures Folder Path",
+        description="Folder to look for textures in",
+        subtype='DIR_PATH',
+    )
+
+    filter_folder: BoolProperty(
+        default=True,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="",
+        description="Show folders in the File Browser",
+    )
+
+    set_globally: BoolProperty(
+        name="Load Textures Globally",
+        description="If false, only loads for selection. If true, loads for all s3o root objects.",
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context: Context):
+        return any(S3ORootProperties.poll(o) for o in bpy.data.objects)
+
+    def invoke(self, context: Context, event: Event) -> set[str]:
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context: Context) -> set[str]:
+        bpy.ops.s3o_tools.import_textures_exec(
+            directory=self.directory,
+            set_globally=self.set_globally
+        )
+        return {'FINISHED'}
+
+
+class ImportTexturesExec(Operator):
+    bl_idname = "s3o_tools.import_textures_exec"
+    bl_label = "Import Textures Exec"
+    bl_options = {'INTERNAL'}
+
+    directory: StringProperty(default='')
+    set_globally: BoolProperty(default=False)
+
+    def execute(self, context: Context) -> set[str]:
+        D = bpy.data
+
+        if (not 'BAR Material Template' in D.materials
+            or not 'BAR Shader Nodes' in D.node_groups):
+            with util.library_load_addon_assets() as (_, data_to):
+                if not 'BAR Material Template' in D.materials:
+                    data_to.materials = ['BAR Material Template']
+                if not 'BAR Shader Nodes' in D.node_groups:
+                    data_to.node_groups = ['BAR Shader Nodes']
+
+        template_mat = bpy.data.materials['BAR Material Template']
+
+        targets = (o for o in (D.objects if self.set_globally else context.selected_objects) if
+            S3ORootProperties.poll(o))
+
+        for root_obj in targets:
+            root_props: S3ORootProperties = root_obj.s3o_root
+            new_mat_name = root_props.s3o_name + '.material'
+            new_mat = D.materials[new_mat_name] if new_mat_name in D.materials else template_mat.copy()
+            new_mat.name = new_mat_name
+
+            if self.directory != '':
+                print(f'Attempting to load textures from: {self.directory}')
+                try:
+                    tex1 = D.images.load(os.path.join(self.directory, root_props.texture_path_1), check_existing=True)
+                    tex1.alpha_mode = 'CHANNEL_PACKED'
+
+                    tex2 = D.images.load(os.path.join(self.directory, root_props.texture_path_2), check_existing=True)
+                    tex2.colorspace_settings.name = 'Non-Color'
+
+                    new_mat.node_tree.nodes['Color Texture'].image = tex1
+                    new_mat.node_tree.nodes['Other Texture'].image = tex2
+
+                    if (common_prefix := os.path.commonprefix(
+                        [root_props.texture_path_1, root_props.texture_path_2]
+                    )) != '':
+                        try:
+                            normal_tex = D.images.load(
+                                os.path.join(
+                                    self.directory,
+                                    f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
+                                )
+                            )
+                            normal_tex.colorspace_settings.name = 'Non-Color'
+                            new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
+                        except Exception as err:
+                            print('could not find normal texture :(')
+                            traceback.print_exception(err)
+
+                except Exception as err:
+                    print("Could not the textures :(")
+                    traceback.print_exception(err)
+
+            if 'arm' in root_props.s3o_name:
+                new_mat.node_tree.nodes['Team Color'].color = (0, 0x4D, 0xFF)
+            elif 'cor' in root_props.s3o_name:
+                new_mat.node_tree.nodes['Team Color'].color = (0xFF, 0x10, 0x05)
+            elif 'leg' in root_props.s3o_name:
+                new_mat.node_tree.nodes['Team Color'].color = (0x0C, 0xE8, 0x18)
+            else:
+                new_mat.node_tree.nodes['Team Color'].color = (0x7F,) * 3
+
+            for child_obj in root_obj.children_recursive:
+                child_obj.active_material = new_mat
+
+        return {'FINISHED'}
+
+
 def register():
     bpy.utils.register_class(ImportSpring3dObject)
     bpy.utils.register_class(ExportSpring3dObject)
+    bpy.utils.register_class(ImportTextures)
+    bpy.utils.register_class(ImportTexturesExec)
 
     bpy.types.TOPBAR_MT_file_import.append(ImportSpring3dObject.menu_func)
     bpy.types.TOPBAR_MT_file_export.append(ExportSpring3dObject.menu_func)
@@ -101,6 +239,8 @@ def register():
 def unregister():
     bpy.utils.unregister_class(ImportSpring3dObject)
     bpy.utils.unregister_class(ExportSpring3dObject)
+    bpy.utils.unregister_class(ImportTextures)
+    bpy.utils.unregister_class(ImportTexturesExec)
 
     bpy.types.TOPBAR_MT_file_import.remove(ImportSpring3dObject.menu_func)
     bpy.types.TOPBAR_MT_file_export.remove(ExportSpring3dObject.menu_func)

@@ -11,21 +11,20 @@ class MainPanel(Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        
+
         layout.operator_menu_enum("s3o_tools.set_all_rotation_modes", 'mode')
-        
+
         self.panel_window_settings(layout)
 
-        if context.mode != "OBJECT":
-            return
-
-        self.panel_add(layout)
-        self.panel_import_export(layout)
+        self.panel_add(layout, context)
+        self.panel_import_export(layout, context)
 
     def panel_window_settings(self, layout: UILayout):
         ...
 
-    def panel_add(self, layout: UILayout):
+    def panel_add(self, layout: UILayout, context: Context):
+        if context.mode != "OBJECT":
+            return
         (header, body) = layout.panel('s3o_add')
         header.label(text="Add")
         if body is not None:
@@ -33,13 +32,15 @@ class MainPanel(Panel):
             col.operator('s3o_tools.add_s3o_root')
             col.operator('s3o_tools.add_s3o_aim_point')
 
-    def panel_import_export(self, layout: UILayout):
+    def panel_import_export(self, layout: UILayout, context: Context):
         (header, body) = layout.panel('s3o_import_export')
         header.label(text="Import / Export")
         if body is not None:
             col = body.column()
-            col.operator("s3o_tools.import_s3o", text="Import *.s3o")
-            col.operator("s3o_tools.export_s3o", text="Export *.s3o")
+            col.operator("s3o_tools.import_textures")
+            if context.mode == "OBJECT":
+                col.operator("s3o_tools.import_s3o", text="Import *.s3o")
+                col.operator("s3o_tools.export_s3o", text="Export *.s3o")
 
 
 def register():

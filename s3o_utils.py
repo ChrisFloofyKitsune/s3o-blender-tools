@@ -38,10 +38,6 @@ def s3o_to_blender_obj(
         s3o.root_piece, root, merge_vertices=merge_vertices
     )
 
-    bpy.ops.object.select_all(action='DESELECT')
-    root.select_set(True)
-    bpy.context.view_layer.objects.active = root
-
     bpy.ops.s3o_tools.refresh_s3o_props()
 
     return root
@@ -266,7 +262,7 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
             verts.append(S3OVertex(position + direction))
         elif not numpy.allclose(direction, (0, 0, 1)):
             verts.append(S3OVertex(direction))
-        
+
         piece.vertices = verts
 
     else:  # is mesh
