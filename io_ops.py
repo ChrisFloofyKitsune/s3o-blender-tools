@@ -199,7 +199,8 @@ class ImportTexturesExec(Operator):
                                 os.path.join(
                                     self.directory,
                                     f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
-                                )
+                                ),
+                                check_existing=True
                             )
                             normal_tex.colorspace_settings.name = 'Non-Color'
                             new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
@@ -210,15 +211,18 @@ class ImportTexturesExec(Operator):
                 except Exception as err:
                     print("Could not the textures :(")
                     traceback.print_exception(err)
-
+            
+            team_color = (0x7F,) * 3
             if 'arm' in root_props.s3o_name:
-                new_mat.node_tree.nodes['Team Color'].color = (0, 0x4D, 0xFF)
+                team_color = (0, 0x4D, 0xFF)
             elif 'cor' in root_props.s3o_name:
-                new_mat.node_tree.nodes['Team Color'].color = (0xFF, 0x10, 0x05)
+                team_color = (0xFF, 0x10, 0x05)
             elif 'leg' in root_props.s3o_name:
-                new_mat.node_tree.nodes['Team Color'].color = (0x0C, 0xE8, 0x18)
+                team_color = (0x0C, 0xE8, 0x18)
             else:
-                new_mat.node_tree.nodes['Team Color'].color = (0x7F,) * 3
+                team_color = (0x7F,) * 3
+            
+            new_mat.node_tree.nodes["Team Color"].outputs[0].default_value = (*(c / 0xFF for c in team_color), 1)
 
             for child_obj in root_obj.children_recursive:
                 child_obj.active_material = new_mat
