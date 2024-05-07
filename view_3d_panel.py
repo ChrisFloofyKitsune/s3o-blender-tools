@@ -14,13 +14,18 @@ class MainPanel(Panel):
 
         layout.operator_menu_enum("s3o_tools.set_all_rotation_modes", 'mode')
 
-        self.panel_window_settings(layout)
+        self.panel_view_settings(layout)
 
         self.panel_add(layout, context)
         self.panel_import_export(layout, context)
 
-    def panel_window_settings(self, layout: UILayout):
-        ...
+    def panel_view_settings(self, layout: UILayout):
+        (header, body) = layout.panel('s3o_view')
+        header.label(text="View Settings")
+        if body is not None:
+            col = body.column()
+            col.prop(bpy.context.space_data.overlay, 'show_extras', text="Show Empties")
+
 
     def panel_add(self, layout: UILayout, context: Context):
         if context.mode != "OBJECT":
