@@ -213,9 +213,8 @@ def blender_obj_to_s3o(obj: bpy.types.Object) -> S3O:
     if not S3ORootProperties.poll(obj):
         raise ValueError('Object to export must have s3o root properties')
 
-    mesh_count = 0
-    if (mesh_count := sum(1 for c in obj.children if c.type == 'MESH')) != 1:
-        raise ValueError(f'Expected only ONE child of the root object to have a mesh, found {mesh_count}')
+    if (count := sum(1 for c in obj.children if c.type == 'MESH' or S3OAimPointProperties.poll(c))) != 1:
+        raise ValueError(f'Expected only ONE non-placeholder child of the root object, found {count}')
 
     props: S3ORootProperties = obj.s3o_root
 
@@ -229,7 +228,7 @@ def blender_obj_to_s3o(obj: bpy.types.Object) -> S3O:
     s3o.texture_path_2 = props.texture_path_2
 
     s3o.root_piece = blender_obj_to_piece(
-        next(c for c in obj.children if c.type == 'MESH')
+        next(c for c in obj.children if c.type == 'MESH' or S3OAimPointProperties.poll(c))
     )
 
     return s3o
