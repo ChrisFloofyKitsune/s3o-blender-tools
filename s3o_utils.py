@@ -1,5 +1,4 @@
 import dataclasses
-import functools
 from typing import Self
 
 import numpy
@@ -55,7 +54,8 @@ def recurse_add_s3o_piece_as_child(
     merge_vertices=True
 ):
     new_obj: bpy.types.Object
-    if len(piece.indices) < 3:
+    # 0-1 triangle pieces are emit pieces
+    if len(piece.indices) < 4:
         new_obj = make_aim_point_from_s3o_empty(piece)
     else:
         new_obj = make_bl_obj_from_s3o_mesh(
@@ -87,7 +87,7 @@ def make_aim_point_from_s3o_empty(s3o_piece: S3OPiece) -> bpy.types.Object:
             aim_dir = s3o_piece.vertices[0][0]
         case 2:
             aim_position = s3o_piece.vertices[0].position
-            aim_dir = s3o_piece.vertices[1].position - aim_position
+            aim_dir = (s3o_piece.vertices[1].position - aim_position).normalized()
         case _:
             pass
 
@@ -120,13 +120,10 @@ def make_bl_obj_from_s3o_mesh(
     # store this now so that values are not overlooked as a result of the de-duplication steps
     v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
 
-    close_pos = functools.partial(numpy.allclose, atol=0.002)
-    close_norm = functools.partial(numpy.allclose, atol=0.01)
-
     duplicate_verts = []
 
     if merge_vertices:
-        duplicate_verts = util.make_duplicates_mapping(p_vertices,0.001)
+        duplicate_verts = util.make_duplicates_mapping(p_vertices, 0.001)
 
         for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
             if current_vert_index in duplicate_verts:
@@ -209,7 +206,7 @@ def make_bl_obj_from_s3o_mesh(
 
     new_obj = object_utils.object_data_add(bpy.context, mesh)
     new_obj.name = piece.name
-    
+
     if len(mesh.polygons) == 1:
         print(f'{piece.name} looks like it is an emit piece')
 
@@ -269,6 +266,8 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
             verts.append(S3OVertex(position + direction))
         elif not numpy.allclose(direction, (0, 0, 1)):
             verts.append(S3OVertex(direction))
+        
+        piece.vertices = verts
 
     else:  # is mesh
         tmp_obj: bpy.types.Object | None = None
