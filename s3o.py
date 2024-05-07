@@ -3,6 +3,8 @@ import struct
 from enum import Enum
 from typing import NamedTuple, Self
 
+import numpy
+
 from mathutils import Vector
 from .util import extract_null_terminated_string
 
@@ -65,6 +67,9 @@ class S3OVertex(NamedTuple):
         self.position.freeze()
         self.normal.freeze()
         self.tex_coords.freeze()
+
+    def __array__(self):
+        return numpy.array([self.position, self.normal, [*self.tex_coords, 0]])
 
 
 class S3OPiece:

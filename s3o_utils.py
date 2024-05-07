@@ -1,5 +1,8 @@
 import dataclasses
+import functools
 from typing import Self
+
+import numpy
 
 import bmesh
 import bpy.types
@@ -107,7 +110,6 @@ def make_bl_obj_from_s3o_mesh(
     *,
     merge_vertices=True
 ) -> bpy.types.Object:
-
     for vertex in piece.vertices:
         vertex.normal.normalize()
 
@@ -118,26 +120,13 @@ def make_bl_obj_from_s3o_mesh(
     # store this now so that values are not overlooked as a result of the de-duplication steps
     v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
 
-    def close_pos(v1, v2):
-        return util.vector_close_equals(v1, v2, threshold=0.002)
-
-    def close_norm(v1, v2):
-        return util.vector_close_equals(v1, v2, threshold=0.01)
-
-    def close_tex_coord(v1, v2):
-        return util.vector_close_equals(v1, v2, threshold=0.001)
+    close_pos = functools.partial(numpy.allclose, atol=0.002)
+    close_norm = functools.partial(numpy.allclose, atol=0.01)
 
     duplicate_verts = []
 
     if merge_vertices:
-        duplicate_verts = util.duplicates_by_predicate(
-            p_vertices,
-            lambda v1, v2: (
-                close_pos(v1.position, v2.position)
-                and close_norm(v1.normal, v2.normal)
-                and close_tex_coord(v1.tex_coords, v2.tex_coords)
-            )
-        )
+        duplicate_verts = util.make_duplicates_mapping(p_vertices,0.001)
 
         for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
             if current_vert_index in duplicate_verts:
@@ -166,9 +155,9 @@ def make_bl_obj_from_s3o_mesh(
         (v_positions[i], v_normals[i], v_tex_coords[i]) = vertex
 
     if merge_vertices:
-        duplicate_positions = util.duplicates_by_predicate(v_positions, close_pos)
+        duplicate_positions = util.make_duplicates_mapping(v_positions, 0.002)
         norms_to_check = {i: v_normals[i] for i in duplicate_positions.keys()}
-        duplicate_normals = util.duplicates_by_predicate(norms_to_check, close_norm)
+        duplicate_normals = util.make_duplicates_mapping(norms_to_check, 0.01)
 
         for face_indices in face_indices_list:
             for i, (pos_idx, norm_idx, tex_coord_idx, ao_idx) in enumerate(face_indices):
@@ -220,6 +209,9 @@ def make_bl_obj_from_s3o_mesh(
 
     new_obj = object_utils.object_data_add(bpy.context, mesh)
     new_obj.name = piece.name
+    
+    if len(mesh.polygons) == 1:
+        print(f'{piece.name} looks like it is an emit piece')
 
     return new_obj
 
@@ -272,10 +264,10 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
         direction = ap_props.dir.normalized()
 
         verts: list[S3OVertex] = []
-        if not util.vector_close_equals(position, (0, 0, 0)):
+        if not numpy.allclose(position, (0, 0, 0)):
             verts.append(S3OVertex(position))
             verts.append(S3OVertex(position + direction))
-        elif not util.vector_close_equals(direction, (0, 0, 1)):
+        elif not numpy.allclose(direction, (0, 0, 1)):
             verts.append(S3OVertex(direction))
 
     else:  # is mesh

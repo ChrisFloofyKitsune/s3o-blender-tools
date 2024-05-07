@@ -1,7 +1,9 @@
-import itertools
-from collections.abc import Iterable, Generator, Callable
+from collections.abc import Iterable, Generator
 from itertools import islice
 from typing import TypeVar
+
+import numpy as np
+import numpy.typing as npt
 
 from mathutils import Matrix
 
@@ -45,32 +47,43 @@ def extract_null_terminated_string(data: bytes, offset: int) -> str:
         return data[offset:data.index(b'\x00', offset)].decode()
 
 
-def vector_close_equals(v1, v2, /, *, threshold=0.001) -> bool:
-    return all(abs(v1[i] - v2[i]) <= threshold for i in range(min(len(v1), len(v2))))
-
-
-def matrix_close_equals(m1, m2, /, *, threshold=0.0001) -> bool:
-    return all(
-        vector_close_equals(m1[i], m2[2], threshold=threshold)
-            for i in range(min(len(m1), len(m2)))
-    )
-
-
-def duplicates_by_predicate(
-    values: dict[int, T] | Iterable[T],
-    predicate: Callable[[T, T], bool]
+def make_duplicates_mapping(
+    values: dict[int, npt.ArrayLike] | npt.ArrayLike,
+    tolerance=0.001,
 ) -> dict[int, int]:
-    vals_dict: dict[int, T] = values if type(values) is dict else {i: v for i, v in enumerate(values)}
-    duplicates: dict[int, int] = {}
+    np_array: npt.NDArray
+    try:
+        if type(values) is dict:
+            if len(values) == 0:
+                return dict()
+            example_array = np.array(next(iter(values.values()), ()))
+            np_array = np.full_like(example_array, fill_value=np.nan, shape=(max(values.keys())+1, *example_array.shape))
+            np_array[np.array(list(values.keys()), dtype=int)] = [np.array(v) for v in values.values()]
+        else:
+            np_array = np.array(values)
+            if np_array.size == 0:
+                return {}
 
-    for (idx_1, val_1), (idx_2, val_2) in itertools.combinations(vals_dict.items(), 2):
-        if idx_1 in duplicates:
-            continue
+        indexes_of_originals = np.arange(len(np_array), dtype=int)
 
-        if predicate(val_1, val_2):
-            duplicates[idx_2] = idx_1
+        for idx in range(len(np_array) - 1):
+            current_value = np_array[idx]
 
-    return duplicates
+            # skip if value is "empty" or if this value was already marked as a duplicate
+            if np.all(np.isnan(current_value)):
+                continue
+            if indexes_of_originals[idx] < idx:
+                continue
+
+            slice_compare_results = np.isclose(np_array[idx + 1:], current_value, atol=tolerance)
+            slice_compare_results = np.logical_and.reduce(slice_compare_results, (*range(0, np_array.ndim),)[1:])
+            np.copyto(indexes_of_originals[idx + 1:], idx, where=slice_compare_results)
+        result = {idx: orig_idx for idx, orig_idx in enumerate(indexes_of_originals) if idx != orig_idx}
+        return result
+
+    except Exception as err:
+        print("WARNING could not find dupes!", err)
+    return {}
 
 
 def strip_suffix(blender_name: str):
