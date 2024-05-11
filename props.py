@@ -27,12 +27,6 @@ class S3OPropertyGroup(PropertyGroup):
     def _poll(self, obj: bpy.types.Object | Any):
         return self.__class__.poll(obj)
 
-    def get_root_object(self) -> Object:
-        obj: Object = self.id_data
-        while not S3ORootProperties.poll(obj) and obj.parent is not None:
-            obj = obj.parent
-        return obj
-
 
 class S3ORootProperties(S3OPropertyGroup):
     class PlaceholderTag(StrEnum):
@@ -275,6 +269,15 @@ def refresh_all_s3o_props(context: Context | None = None):
             if isinstance(prop, S3OPropertyGroup):
                 if prop.poll(obj):
                     prop.update(context)
+
+
+def get_s3o_root_object(obj: Object | None) -> Object | None:
+    if obj is None:
+        return None
+    
+    while not S3ORootProperties.poll(obj) and obj.parent is not None:
+        obj = obj.parent
+    return obj if S3ORootProperties.poll(obj) else None
 
 
 def register():

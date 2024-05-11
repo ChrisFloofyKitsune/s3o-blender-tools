@@ -5,7 +5,7 @@ import bpy
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator, Context, Menu, Event
 from bpy_extras.io_utils import ImportHelper, ExportHelper
-from . import s3o, s3o_utils, util
+from . import s3o, s3o_utils, util, props
 from .props import S3ORootProperties
 
 
@@ -89,6 +89,14 @@ class ExportSpring3dObject(Operator, ExportHelper):
         options={'HIDDEN'},
         maxlen=255,
     )
+    
+    @staticmethod
+    def get_s3o_to_export(context: Context) -> S3ORootProperties:
+        s3o_roots_in_scene = [o.s3o_root for o in context.scene.objects if S3ORootProperties.poll(o)]
+        if len(s3o_roots_in_scene) == 1:
+            return s3o_roots_in_scene[0]
+        else:
+            return props.get_s3o_root_object(context.object).s3o_root
 
     @staticmethod
     def menu_func(menu: Menu, context: Context):
@@ -96,14 +104,20 @@ class ExportSpring3dObject(Operator, ExportHelper):
 
     @classmethod
     def poll(cls, context: Context) -> bool:
-        return S3ORootProperties.poll(context.object)
+        return (sum(1 for o in context.scene.objects if S3ORootProperties.poll(o)) == 1
+                or props.get_s3o_root_object(context.object) is not None)
+
+    def invoke(self, context: Context, event: Event) -> set[str]:
+        self.filepath = self.get_s3o_to_export(context).s3o_name + self.filename_ext
+        return super().invoke(context, event)
 
     def execute(self, context: Context) -> set[str]:
-        s3o = s3o_utils.blender_obj_to_s3o(context.object)
-        data = s3o.serialize()
+        s3o_obj = self.get_s3o_to_export(context).id_data
+        s3o_data = s3o_utils.blender_obj_to_s3o(s3o_obj)
+        data = s3o_data.serialize()
         with open(self.filepath, 'wb') as output:
             print(f'Writing {len(data)} bytes to {self.filepath}')
-            output.write(s3o.serialize())
+            output.write(data)
 
         return {'FINISHED'}
 
@@ -129,13 +143,13 @@ class ImportTextures(Operator):
 
     set_globally: BoolProperty(
         name="Load Textures Globally",
-        description="If false, only loads for selection. If true, loads for all s3o root objects.",
+        description="If false, only loads for selection. If true, loads for all s3o root objects in the scene.",
         default=True,
     )
 
     @classmethod
     def poll(cls, context: Context):
-        return any(S3ORootProperties.poll(o) for o in bpy.data.objects)
+        return any(S3ORootProperties.poll(o) for o in bpy.context.scene.objects)
 
     def invoke(self, context: Context, event: Event) -> set[str]:
         context.window_manager.fileselect_add(self)
@@ -169,9 +183,14 @@ class ImportTexturesExec(Operator):
                     data_to.node_groups = ['BAR Shader Nodes']
 
         template_mat = bpy.data.materials['BAR Material Template']
-
-        targets = (o for o in (D.objects if self.set_globally else context.selected_objects) if
-            S3ORootProperties.poll(o))
+        
+        targets = set()
+        if self.set_globally:
+            targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
+        else:
+            targets = set(props.get_s3o_root_object(o) for o in context.selected_objects)
+            if len(targets) == 0:
+                return {'CANCELED'}
 
         for root_obj in targets:
             root_props: S3ORootProperties = root_obj.s3o_root
@@ -211,7 +230,7 @@ class ImportTexturesExec(Operator):
                 except Exception as err:
                     print("Could not the textures :(")
                     traceback.print_exception(err)
-            
+
             team_color = (0x7F,) * 3
             if 'arm' in root_props.s3o_name:
                 team_color = (0, 0x4D, 0xFF)
@@ -221,7 +240,7 @@ class ImportTexturesExec(Operator):
                 team_color = (0x0C, 0xE8, 0x18)
             else:
                 team_color = (0x7F,) * 3
-            
+
             new_mat.node_tree.nodes["Team Color"].outputs[0].default_value = (*(c / 0xFF for c in team_color), 1)
 
             for child_obj in root_obj.children_recursive:
