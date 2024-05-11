@@ -1,3 +1,4 @@
+import functools
 import os.path
 from collections.abc import Iterable, Generator
 from itertools import islice
@@ -59,7 +60,9 @@ def make_duplicates_mapping(
             if len(values) == 0:
                 return dict()
             example_array = np.array(next(iter(values.values()), ()))
-            np_array = np.full_like(example_array, fill_value=np.nan, shape=(max(values.keys())+1, *example_array.shape))
+            np_array = np.full_like(
+                example_array, fill_value=np.nan, shape=(max(values.keys()) + 1, *example_array.shape)
+            )
             np_array[np.array(list(values.keys()), dtype=int)] = [np.array(v) for v in values.values()]
         else:
             np_array = np.array(values)
@@ -92,7 +95,7 @@ def strip_suffix(blender_name: str):
     if "." not in blender_name:
         return blender_name
 
-    head, tail = blender_name.rsplit(".")
+    head, tail = blender_name.rsplit(".", 1)
     if tail.isnumeric():
         return head
     return blender_name
@@ -105,3 +108,20 @@ def library_load_addon_assets() -> ContextManager:
         assets_only=True,
         link=True
     )
+
+
+def select_active_in_outliner(context: bpy.types.Context):
+    area = next((area for area in bpy.data.screens[context.screen.name].areas if area.type == 'OUTLINER'), None)
+    if area is not None:
+        region = next(region for region in area.regions if region.type == 'WINDOW')
+        if region is not None:
+            
+            # the Outliner has not been updated yet, so we must wait a moment
+            def temp_outliner_select(**kwargs):
+                with context.temp_override(**kwargs):
+                    bpy.ops.outliner.show_active()
+
+            bpy.app.timers.register(
+                functools.partial(temp_outliner_select, window=context.window, area=area, region=region),
+                first_interval=0.01
+            )

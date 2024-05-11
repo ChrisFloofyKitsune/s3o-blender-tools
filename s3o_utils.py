@@ -29,8 +29,8 @@ def s3o_to_blender_obj(
         collision_radius=s3o.collision_radius,
         height=s3o.height,
         midpoint=s3o.midpoint,
-        texture_path_1=s3o.texture_path_1,
-        texture_path_2=s3o.texture_path_2,
+        texture_name_1=s3o.texture_path_1,
+        texture_name_2=s3o.texture_path_2,
     )
     root = bpy.context.object
 
