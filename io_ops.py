@@ -80,7 +80,7 @@ class ExportSpring3dObject(Operator, ExportHelper):
     """Export a S3O Root Object a *.s3o file"""
     bl_idname = "s3o_tools.export_s3o"
     bl_label = "Spring/Recoil (*.s3o)"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
 
     filename_ext = ".s3o"
 
@@ -96,7 +96,7 @@ class ExportSpring3dObject(Operator, ExportHelper):
         if len(s3o_roots_in_scene) == 1:
             return s3o_roots_in_scene[0]
         else:
-            return props.get_s3o_root_object(context.object).s3o_root
+            return obj_props.get_s3o_root_object(context.object).s3o_root
 
     @staticmethod
     def menu_func(menu: Menu, context: Context):
@@ -105,7 +105,7 @@ class ExportSpring3dObject(Operator, ExportHelper):
     @classmethod
     def poll(cls, context: Context) -> bool:
         return (sum(1 for o in context.scene.objects if S3ORootProperties.poll(o)) == 1
-                or props.get_s3o_root_object(context.object) is not None)
+                or obj_props.get_s3o_root_object(context.object) is not None)
 
     def invoke(self, context: Context, event: Event) -> set[str]:
         self.filepath = self.get_s3o_to_export(context).s3o_name + self.filename_ext
@@ -188,7 +188,7 @@ class ImportTexturesExec(Operator):
         if self.set_globally:
             targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
         else:
-            targets = set(props.get_s3o_root_object(o) for o in context.selected_objects)
+            targets = set(obj_props.get_s3o_root_object(o) for o in context.selected_objects)
             if len(targets) == 0:
                 return {'CANCELED'}
 

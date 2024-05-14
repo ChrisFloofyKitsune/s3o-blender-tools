@@ -1,6 +1,8 @@
 import bpy.utils
 from bpy.types import Panel, Context, UILayout
 from bl_ui.generic_ui_list import draw_ui_list
+from .ambient_occlusion import AOProps, ObjectExplodeEntry
+import typing
 
 class MainPanel(Panel):
     bl_idname = "S3O_PT_view_3d_main"
@@ -161,8 +163,8 @@ class AOPanel(Panel):
         reset_row.operator('s3o_tools_ao.reset_ao_value')
         reset_row.prop(context.scene.s3o_ao, 'reset_ao_value', text="")
         
-        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ambient Occlusion')
-        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ground Plane AO')
+        col.operator('s3o_tools_ao.bake_vertex_ao')
+        col.operator('s3o_tools_ao.bake_building_plate')
 
 def register():
     bpy.utils.register_class(MainPanel)

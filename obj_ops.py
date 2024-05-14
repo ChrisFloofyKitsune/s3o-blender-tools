@@ -263,22 +263,13 @@ class S3OifyExistingObjectHierarchy(Operator):
             bpy.ops.object.duplicate()
             top_level_object = context.active_object
 
-        max_corner = Vector((-math.inf,) * 3)
-        min_corner = Vector((math.inf,) * 3)
-        
-        for obj in itertools.chain([top_level_object], top_level_object.children_recursive):
-            world_space_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-            max_corner.x = max(max_corner.x, *[corner.x for corner in world_space_corners])
-            max_corner.y = max(max_corner.y, *[corner.y for corner in world_space_corners])
-            max_corner.z = max(max_corner.z, *[corner.z for corner in world_space_corners])
-
-            min_corner.x = min(min_corner.x, *[corner.x for corner in world_space_corners])
-            min_corner.y = min(min_corner.y, *[corner.y for corner in world_space_corners])
-            min_corner.z = min(min_corner.z, *[corner.z for corner in world_space_corners])
-                
-            max_corner = util.TO_FROM_BLENDER_SPACE @ max_corner
-            min_corner = util.TO_FROM_BLENDER_SPACE @ min_corner
-            center = (max_corner + min_corner) / 2
+        min_corner, max_corner = util.get_world_bounds_min_max(
+            itertools.chain([top_level_object], top_level_object.children_recursive)
+        )
+ 
+        max_corner = util.TO_FROM_BLENDER_SPACE @ max_corner
+        min_corner = util.TO_FROM_BLENDER_SPACE @ min_corner
+        center = (max_corner + min_corner) / 2
 
         bpy.ops.s3o_tools.add_s3o_root(
             name=self.s3o_model_name,

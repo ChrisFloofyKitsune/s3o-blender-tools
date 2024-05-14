@@ -1,4 +1,5 @@
 import functools
+import math
 import os.path
 from collections.abc import Iterable, Generator
 from itertools import islice
@@ -7,8 +8,10 @@ from typing import TypeVar, ContextManager
 import numpy as np
 import numpy.typing as npt
 
+import bmesh
 import bpy
-from mathutils import Matrix
+import bpy_extras.object_utils
+from mathutils import Matrix, Vector
 
 TO_FROM_BLENDER_SPACE = Matrix(
     (
@@ -115,7 +118,7 @@ def select_active_in_outliner(context: bpy.types.Context):
     if area is not None:
         region = next(region for region in area.regions if region.type == 'WINDOW')
         if region is not None:
-            
+
             # the Outliner has not been updated yet, so we must wait a moment
             def temp_outliner_select(**kwargs):
                 with context.temp_override(**kwargs):
@@ -125,3 +128,76 @@ def select_active_in_outliner(context: bpy.types.Context):
                 functools.partial(temp_outliner_select, window=context.window, area=area, region=region),
                 first_interval=0.01
             )
+
+
+def get_world_bounds_min_max(objects: Iterable[bpy.types.Object]) -> tuple[Vector, Vector]:
+    max_corner = Vector((-math.inf,) * 3)
+    min_corner = Vector((math.inf,) * 3)
+
+    for obj in objects:
+        world_space_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+        max_corner.x = max(max_corner.x, *[corner.x for corner in world_space_corners])
+        max_corner.y = max(max_corner.y, *[corner.y for corner in world_space_corners])
+        max_corner.z = max(max_corner.z, *[corner.z for corner in world_space_corners])
+
+        min_corner.x = min(min_corner.x, *[corner.x for corner in world_space_corners])
+        min_corner.y = min(min_corner.y, *[corner.y for corner in world_space_corners])
+        min_corner.z = min(min_corner.z, *[corner.z for corner in world_space_corners])
+
+    return min_corner, max_corner
+
+
+def add_ground_box(context: bpy.types.Context, radius: float, depth: float) -> bpy.types.Object:
+    """
+    This function takes inputs and returns vertex and face arrays.
+    no actual mesh data creation is done here.
+    """
+
+    verts = [
+        (+1.0, +1.0, -1.0),
+        (+1.0, -1.0, -1.0),
+        (-1.0, -1.0, -1.0),
+        (-1.0, +1.0, -1.0),
+        (+1.0, +1.0, 0),
+        (+1.0, -1.0, 0),
+        (-1.0, -1.0, 0),
+        (-1.0, +1.0, 0),
+    ]
+
+    faces = [
+        (0, 1, 2, 3),
+        (4, 7, 6, 5),
+        (0, 4, 5, 1),
+        (1, 5, 6, 2),
+        (2, 6, 7, 3),
+        (4, 0, 3, 7),
+    ]
+
+    # apply size
+    for i, v in enumerate(verts):
+        verts[i] = v[0] * radius, v[1] * radius, v[2] * depth
+
+    mesh = bpy.data.meshes.new("Box")
+
+    bm = bmesh.new()
+
+    for v_co in verts:
+        bm.verts.new(v_co)
+
+    bm.verts.ensure_lookup_table()
+    for f_idx in faces:
+        bm.faces.new([bm.verts[i] for i in f_idx])
+
+    bm.to_mesh(mesh)
+    mesh.update()
+    
+    return bpy_extras.object_utils.object_data_add(context, mesh)
+
+
+def depth_first_child_iteration(parent_object: bpy.types.Object) -> Iterable[bpy.types.Object]:
+    traversal_stack = [parent_object]
+            
+    while len(traversal_stack) != 0:
+        current_object = traversal_stack.pop()
+        yield current_object
+        traversal_stack.extend(reversed(current_object.children))
