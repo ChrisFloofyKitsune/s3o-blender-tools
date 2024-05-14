@@ -16,10 +16,15 @@ from .obj_props import S3ORootProperties
 
 
 class ObjectExplodeEntry(PropertyGroup):
-    obj: PointerProperty(type=bpy.types.Object)
+    obj: PointerProperty(
+        type=bpy.types.Object,
+        description="'Exploded' object to be moved far away from the others while baking AO"
+                    " so that internal objects can appear to be lit"
+    )
 
 
 class AddObjExplodeEntry(Operator):
+    """Add slot for an object to the list"""
     bl_idname = 's3o_tools_ao.add_explode_entry'
     bl_label = 'Add Entry'
     bl_options = {'REGISTER', 'UNDO'}
@@ -31,6 +36,7 @@ class AddObjExplodeEntry(Operator):
 
 
 class RemoveObjExplodeEntry(Operator):
+    """Remove the last slot"""
     bl_idname = 's3o_tools_ao.remove_explode_entry'
     bl_label = 'Remove Entry'
     bl_options = {'REGISTER', 'UNDO'}
@@ -328,6 +334,7 @@ class BakeVertexAO(Operator):
 
 
 class BakePlateAO(Operator, ExportHelper):
+    """ Bake alpha-channel AO plate for building """
     bl_idname = "s3o_tools_ao.bake_building_plate"
     bl_label = "Bake Ground Plate AO"
     bl_options = {'REGISTER'}
