@@ -5,8 +5,8 @@ import bpy
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import Operator, Context, Menu, Event
 from bpy_extras.io_utils import ImportHelper, ExportHelper
-from . import s3o, s3o_utils, util, props
-from .props import S3ORootProperties
+from . import s3o, s3o_utils, util, obj_props
+from .obj_props import S3ORootProperties
 
 
 class ImportSpring3dObject(Operator, ImportHelper):

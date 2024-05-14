@@ -4,7 +4,7 @@ import math
 import bpy.utils
 from bpy.types import Operator, Context, Menu, Event
 from mathutils import Matrix, Vector
-from . import props, util
+from . import obj_props, util
 
 
 class RefreshS3OProps(Operator):
@@ -263,20 +263,18 @@ class S3OifyExistingObjectHierarchy(Operator):
             bpy.ops.object.duplicate()
             top_level_object = context.active_object
 
-        max_corner, min_corner, center = None, None, None
-        if any((self.auto_height, self.auto_collision_radius, self.auto_midpoint_y, self.auto_midpoint_xz)):
-            max_corner = Vector((-math.inf,) * 3)
-            min_corner = Vector((math.inf,) * 3)
-            
-            for obj in itertools.chain([top_level_object], top_level_object.children_recursive):
-                world_space_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-                max_corner.x = max(max_corner.x, *[corner.x for corner in world_space_corners])
-                max_corner.y = max(max_corner.y, *[corner.y for corner in world_space_corners])
-                max_corner.z = max(max_corner.z, *[corner.z for corner in world_space_corners])
+        max_corner = Vector((-math.inf,) * 3)
+        min_corner = Vector((math.inf,) * 3)
+        
+        for obj in itertools.chain([top_level_object], top_level_object.children_recursive):
+            world_space_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            max_corner.x = max(max_corner.x, *[corner.x for corner in world_space_corners])
+            max_corner.y = max(max_corner.y, *[corner.y for corner in world_space_corners])
+            max_corner.z = max(max_corner.z, *[corner.z for corner in world_space_corners])
 
-                min_corner.x = min(min_corner.x, *[corner.x for corner in world_space_corners])
-                min_corner.y = min(min_corner.y, *[corner.y for corner in world_space_corners])
-                min_corner.z = min(min_corner.z, *[corner.z for corner in world_space_corners])
+            min_corner.x = min(min_corner.x, *[corner.x for corner in world_space_corners])
+            min_corner.y = min(min_corner.y, *[corner.y for corner in world_space_corners])
+            min_corner.z = min(min_corner.z, *[corner.z for corner in world_space_corners])
                 
             max_corner = util.TO_FROM_BLENDER_SPACE @ max_corner
             min_corner = util.TO_FROM_BLENDER_SPACE @ min_corner

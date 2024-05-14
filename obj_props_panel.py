@@ -1,6 +1,6 @@
 import bpy.utils
 from bpy.types import Panel, Context
-from .props import S3ORootProperties, S3OAimPointProperties, S3OPlaceholderProperties
+from .obj_props import S3ORootProperties, S3OAimPointProperties, S3OPlaceholderProperties
 
 
 class S3OPropsPanel(Panel):
