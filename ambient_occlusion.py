@@ -1,6 +1,10 @@
+import itertools
+import math
+from collections.abc import Iterator, Callable
+
+import bmesh
 import bpy
-from bpy.props import BoolProperty, FloatProperty, PointerProperty, CollectionProperty, IntProperty, EnumProperty, \
-    IntVectorProperty
+from bpy.props import BoolProperty, FloatProperty, PointerProperty, CollectionProperty, IntProperty, EnumProperty
 from bpy.types import Operator, Context, PropertyGroup
 
 
@@ -92,7 +96,7 @@ Disable for flying units.
             The plane will be placed at the origin (0,0,0)""",
         default=True
     )
-    
+
     building_plate_size_x: IntProperty(
         name="Size X",
         min=1,
@@ -104,12 +108,30 @@ Disable for flying units.
         min=1,
         soft_max=8,
     )
-    
+
+    building_plate_resolution_inner: IntProperty(
+        options={"HIDDEN"}
+    )
+
+    def get_building_plate_res(self):
+        return self.building_plate_resolution_inner
+
+    def set_building_plate_res(self, value):
+        log2_val = math.log2(value)
+        if value < self.building_plate_resolution_inner:
+            exp = math.floor(log2_val)
+        else:
+            exp = math.ceil(log2_val)
+
+        self.building_plate_resolution_inner = 2 ** exp
+
     building_plate_resolution: IntProperty(
         name="Resolution",
         min=64,
-        max=1024,
-        default=128
+        soft_max=1024,
+        default=128,
+        get=get_building_plate_res,
+        set=set_building_plate_res,
     )
 
     objects_to_explode: CollectionProperty(
@@ -118,6 +140,67 @@ Disable for flying units.
     )
 
     selected_explode_entry: IntProperty()
+
+    bake_target: EnumProperty(
+        name='AO Bake Target',
+        items=(
+            ('ALL', "All Objects", "All Objects in Scene"),
+            ('HIERARCHY', "Object Hierarchy", "All Objects in the Active Object's parent/child hierarchy"),
+            ('ACTIVE', "Active Object Only", "Only the current Active Object"),
+        )
+    )
+
+    reset_ao_value: FloatProperty(
+        name="Reset AO Value",
+        description="Value that the Ambient Occlusion data will be reset to",
+        min=0,
+        max=1,
+        default=0.8,
+        subtype='FACTOR',
+    )
+
+
+def ao_targets_iter(context: Context) -> Iterator[bpy.types.Object]:
+    match context.scene.s3o_ao.bake_target:
+        case 'ALL':
+            for obj in context.scene.objects:
+                if obj.type == 'MESH':
+                    yield obj
+        case 'HIERARCHY':
+            if context.active_object is not None:
+                parent_obj = context.active_object
+                while parent_obj.parent is not None:
+                    parent_obj = parent_obj.parent
+
+            for obj in itertools.chain([parent_obj], parent_obj.children_recursive):
+                if obj.type == 'MESH':
+                    yield obj
+
+        case 'ACTIVE':
+            if context.active_object.type == 'MESH':
+                yield context.active_object
+
+def ao_val_each_get_set(
+    input: bpy.types.Object | bmesh.types.BMesh, 
+    func: Callable[[tuple[float, float, float, float]], tuple[float, float, float, float]]
+):
+    if isinstance(input, bmesh.types.BMesh):
+        bm = input
+    else:
+        bm = bmesh.new(use_operators=False)
+        bm.from_mesh(input.data)
+    
+    ao_data = bm.loops.layers.float_color.get(
+        'ambient_occlusion',
+        bm.loops.layers.float_color.new('ambient_occlusion')
+    )
+
+    for face in bm.faces:
+        for face_corner in face.loops:
+            face_corner[ao_data] = func(face_corner[ao_data])
+    
+    if bm is not input:
+        bm.to_mesh(input.data)
 
 
 class ShowAOInView(Operator):
@@ -132,6 +215,22 @@ class ShowAOInView(Operator):
         return {'FINISHED'}
 
 
+class ResetAO(Operator):
+    """ Reset Ambient Occlusion data to the value specified by 'Reset AO Value'"""
+    bl_idname = "s3o_tools_ao.reset_ao_value"
+    bl_label = "Reset AO"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context: Context) -> set[str]:
+        reset_val = (*((context.scene.s3o_ao.reset_ao_value,) * 3), 1.0)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in ao_targets_iter(context):
+            ao_val_each_get_set(obj, lambda _: reset_val)
+
+        return {"FINISHED"}
+
+
 reg_classes, unreg_classes = bpy.utils.register_classes_factory(
     [
         ObjectExplodeEntry,
@@ -139,6 +238,7 @@ reg_classes, unreg_classes = bpy.utils.register_classes_factory(
         RemoveObjExplodeEntry,
         AOProps,
         ShowAOInView,
+        ResetAO
     ]
 )
 

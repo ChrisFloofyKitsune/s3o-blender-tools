@@ -82,15 +82,11 @@ class AOPanel(Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
+        layout.operator('s3o_tools_ao.show_ao_in_view')
+        
         self.panel_settings(layout, context)
         self.panel_objs_to_explode(layout, context)
-
-        layout.operator('s3o_tools_ao.show_ao_in_view')
-        col = layout.column(align=True)
-        col.operator('s3o_tools_ao.show_ao_in_view', text='Reset Ambient Occlusion')
-        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ambient Occlusion')
-        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ground Plane AO')
+        self.panel_bake(layout, context)
 
     def panel_settings(self, layout: UILayout, context: Context):
         header: UILayout
@@ -142,6 +138,31 @@ class AOPanel(Panel):
         list_buttons_col.operator("s3o_tools_ao.add_explode_entry", icon='ADD', text="")
         list_buttons_col.operator("s3o_tools_ao.remove_explode_entry", icon='REMOVE', text="")
 
+    def panel_bake(self, layout: UILayout, context: Context):
+        header: UILayout
+        body: UILayout | None
+        (header, body) = layout.panel('s3o_ao_bake_panel')
+        header.label(text="AO Bake")
+        if body is None:
+            return
+
+        col = body.column(align=True)
+
+        (bake_header, bake_box) = col.panel('s3o_ao_bake_panel_target')
+        bake_header.label(text="Target")
+        if bake_box is not None:
+            bake_box: UILayout
+            bake_box.use_property_split = False
+            bake_box.prop(context.scene.s3o_ao, 'bake_target', expand=True)
+        
+        col.separator()
+        
+        reset_row = col.row(align=True)
+        reset_row.operator('s3o_tools_ao.reset_ao_value')
+        reset_row.prop(context.scene.s3o_ao, 'reset_ao_value', text="")
+        
+        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ambient Occlusion')
+        col.operator('s3o_tools_ao.show_ao_in_view', text='Bake Ground Plane AO')
 
 def register():
     bpy.utils.register_class(MainPanel)
