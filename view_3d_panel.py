@@ -84,7 +84,10 @@ class AOPanel(Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        layout.operator('s3o_tools_ao.show_ao_in_view')
+        
+        col = layout.column(align=True)
+        col.operator('s3o_tools_ao.to_ao_view')
+        col.operator('s3o_tools_ao.to_rendered_view')
         
         self.panel_settings(layout, context)
         self.panel_objs_to_explode(layout, context)

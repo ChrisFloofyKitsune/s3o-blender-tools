@@ -1,4 +1,5 @@
 import math
+import typing
 from collections.abc import Iterator, Callable
 from contextlib import AbstractContextManager
 
@@ -18,8 +19,9 @@ from .obj_props import S3ORootProperties
 class ObjectExplodeEntry(PropertyGroup):
     obj: PointerProperty(
         type=bpy.types.Object,
+        name='Target Object',
         description="'Exploded' object to be moved far away from the others while baking AO"
-                    " so that internal objects can appear to be lit"
+                    " so that internally hidden objects can appear to be lit"
     )
 
 
@@ -260,15 +262,24 @@ def make_ao_vertex_bake_plate(context: Context) -> bpy.types.Object:
     return util.add_ground_box(context, radius, plate_thickness)
 
 
-class ShowAOInView(Operator):
+class ToAOView(Operator):
     """Change the view settings to a preset such that AO data is visible"""
-    bl_idname = "s3o_tools_ao.show_ao_in_view"
+    bl_idname = "s3o_tools_ao.to_ao_view"
     bl_label = "To AO View"
 
     def execute(self, context: Context):
         context.space_data.shading.type = 'SOLID'
         context.space_data.shading.light = 'FLAT'
         context.space_data.shading.color_type = 'VERTEX'
+        return {'FINISHED'}
+
+class ToRenderView(Operator):
+    """Shortcut to change to 'Rendered' viewport shading"""
+    bl_idname = "s3o_tools_ao.to_rendered_view"
+    bl_label = "To Rendered View"
+    
+    def execute(self, context: Context) -> set[str]:
+        bpy.context.space_data.shading.type = 'RENDERED'
         return {'FINISHED'}
 
 
@@ -455,7 +466,8 @@ reg_classes, unreg_classes = bpy.utils.register_classes_factory(
         AddObjExplodeEntry,
         RemoveObjExplodeEntry,
         AOProps,
-        ShowAOInView,
+        ToAOView,
+        ToRenderView,
         ResetAO,
         BakeVertexAO,
         BakePlateAO
