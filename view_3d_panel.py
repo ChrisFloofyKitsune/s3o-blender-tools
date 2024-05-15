@@ -31,7 +31,7 @@ class MainPanel(Panel):
         (header, body) = layout.panel('s3o_add')
         header.label(text="Add")
         if body is not None:
-            col: bpy.types.UILayout = body.column()
+            col: bpy.types.UILayout = body.column(align=True)
             col.operator('s3o_tools.add_s3o_root', icon='EMPTY_ARROWS')
             col.operator('s3o_tools.add_s3o_aim_point', icon='EMPTY_SINGLE_ARROW')
             row = col.row()
@@ -42,7 +42,7 @@ class MainPanel(Panel):
         (header, body) = layout.panel('s3o_import_export')
         header.label(text="Import / Export")
         if body is not None:
-            col = body.column()
+            col = body.column(align=True)
             col.operator("s3o_tools.import_textures", icon='TEXTURE')
             col.operator("s3o_tools.import_s3o", text="Import *.s3o", icon='IMPORT')
             col.operator("s3o_tools.export_s3o", text="Export *.s3o", icon='EXPORT')
@@ -51,7 +51,7 @@ class MainPanel(Panel):
         (header, body) = layout.panel('s3o_import_util')
         header.label(text="Utilities")
         if body is not None:
-            col = body.column()
+            col = body.column(align=True)
             col.operator_menu_enum("s3o_tools.set_all_rotation_modes", 'mode', icon='ORIENTATION_GIMBAL')
             col.operator("s3o_tools.s3oify_object_hierarchy", icon='SHADERFX')
 
