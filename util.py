@@ -190,13 +190,13 @@ def add_ground_box(context: bpy.types.Context, radius: float, depth: float) -> b
 
     bm.to_mesh(mesh)
     mesh.update()
-    
+
     return bpy_extras.object_utils.object_data_add(context, mesh)
 
 
 def depth_first_child_iteration(parent_object: bpy.types.Object) -> Iterable[bpy.types.Object]:
     traversal_stack = [parent_object]
-            
+
     while len(traversal_stack) != 0:
         current_object = traversal_stack.pop()
         yield current_object

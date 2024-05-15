@@ -247,8 +247,7 @@ def get_or_create_placeholder_empty(
     placeholder = next(
         (
             c for c in parent_obj.children
-            if S3OPlaceholderProperties.poll(c)
-               and c.s3o_placeholder.tag == tag
+            if S3OPlaceholderProperties.poll(c) and c.s3o_placeholder.tag == tag
         ),
         None
     )
@@ -274,7 +273,7 @@ def refresh_all_s3o_props(context: Context | None = None):
 def get_s3o_root_object(obj: Object | None) -> Object | None:
     if obj is None:
         return None
-    
+
     while not S3ORootProperties.poll(obj) and obj.parent is not None:
         obj = obj.parent
     return obj if S3ORootProperties.poll(obj) else None

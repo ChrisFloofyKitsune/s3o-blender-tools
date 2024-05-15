@@ -63,12 +63,12 @@ del mod_name, full_name
 
 
 def register():
-    for full_name in child_modules.values():
-        if full_name in sys.modules and hasattr(sys.modules[full_name], 'register'):
-            sys.modules[full_name].register()
+    for full_module_name in child_modules.values():
+        if full_module_name in sys.modules and hasattr(sys.modules[full_module_name], 'register'):
+            sys.modules[full_module_name].register()
 
 
 def unregister():
-    for full_name in child_modules.values():
-        if full_name in sys.modules and hasattr(sys.modules[full_name], 'unregister'):
-            sys.modules[full_name].unregister()
+    for full_module_name in child_modules.values():
+        if full_module_name in sys.modules and hasattr(sys.modules[full_module_name], 'unregister'):
+            sys.modules[full_module_name].unregister()

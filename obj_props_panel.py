@@ -53,6 +53,7 @@ class S3OAimPointPropsPanel(S3OPropsPanel):
         row.enabled = not props.align_to_rotation
         row.prop(props, 'dir')
 
+
 class S3OPlaceholderPropsPanel(S3OPropsPanel):
     bl_idname = "S3O_PT_s3o_placeholder_props"
     bl_label = "S3O Properties (Placeholder)"

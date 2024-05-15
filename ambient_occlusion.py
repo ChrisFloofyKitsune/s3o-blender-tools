@@ -1,5 +1,4 @@
 import math
-import typing
 from collections.abc import Iterator, Callable
 from contextlib import AbstractContextManager
 
@@ -72,7 +71,7 @@ class AOProps(PropertyGroup):
         description=
         """The darkest possible level AO shading will go to.
         0 means even the darkest is allowed,
-        1 means that everything will be full white. 
+        1 means that everything will be full white.
         0.5 is good if you dont want pieces to go too dark""",
         min=0,
         max=1,
@@ -230,14 +229,14 @@ def ao_targets_iter(context: Context) -> Iterator[bpy.types.Object]:
 
 
 def ao_val_each_get_set(
-    input: bpy.types.Object | bmesh.types.BMesh,
+    input_data: bpy.types.Object | bmesh.types.BMesh,
     func: Callable[[float], float]
 ):
-    if isinstance(input, bmesh.types.BMesh):
-        bm = input
+    if isinstance(input_data, bmesh.types.BMesh):
+        bm = input_data
     else:
         bm = bmesh.new(use_operators=False)
-        bm.from_mesh(input.data)
+        bm.from_mesh(input_data.data)
 
     ao_data = bm.loops.layers.float_color.get(
         'ambient_occlusion',
@@ -249,8 +248,8 @@ def ao_val_each_get_set(
             new_ao_val = min(1.0, max(0.0, func(max(face_corner[ao_data][0:3]))))
             face_corner[ao_data] = (*((new_ao_val,) * 3), 1)
 
-    if bm is not input:
-        bm.to_mesh(input.data)
+    if bm is not input_data:
+        bm.to_mesh(input_data.data)
 
 
 def make_ao_vertex_bake_plate(context: Context) -> bpy.types.Object:
@@ -273,11 +272,12 @@ class ToAOView(Operator):
         context.space_data.shading.color_type = 'VERTEX'
         return {'FINISHED'}
 
+
 class ToRenderView(Operator):
     """Shortcut to change to 'Rendered' viewport shading"""
     bl_idname = "s3o_tools_ao.to_rendered_view"
     bl_label = "To Rendered View"
-    
+
     def execute(self, context: Context) -> set[str]:
         bpy.context.space_data.shading.type = 'RENDERED'
         return {'FINISHED'}
@@ -315,6 +315,8 @@ class BakeVertexAO(Operator):
 
     def execute(self, context: Context) -> set[str]:
         prev_render_engine = context.scene.render.engine
+        plate = None
+
         try:
             bpy.context.scene.render.engine = 'CYCLES'
             if context.scene.s3o_ao.ground_plate:
@@ -336,9 +338,9 @@ class BakeVertexAO(Operator):
                     ao_val_each_get_set(obj, lambda ao_in: max(min_clamp, ao_in * gain + bias))
                     obj.select_set(False)
 
-                if context.scene.s3o_ao.ground_plate:
-                    bpy.data.objects.remove(plate)
         finally:
+            if plate is not None:
+                bpy.data.objects.remove(plate)
             bpy.context.scene.render.engine = prev_render_engine
 
         return {'FINISHED'}
@@ -363,7 +365,7 @@ class BakePlateAO(Operator, ExportHelper):
         s3o_roots_in_scene = [o.s3o_root for o in context.scene.objects if S3ORootProperties.poll(o)]
         if len(s3o_roots_in_scene) == 1:
             return s3o_roots_in_scene[0]
-        else:
+        elif context.object is not None:
             return obj_props.get_s3o_root_object(context.object).s3o_root
 
     @classmethod
@@ -377,6 +379,8 @@ class BakePlateAO(Operator, ExportHelper):
 
     def execute(self, context: Context) -> set[str]:
         prev_render_engine = context.scene.render.engine
+        plane = None
+        
         try:
             bpy.context.scene.render.engine = "CYCLES"
 

@@ -265,7 +265,6 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
         piece.vertices = verts
 
     else:  # is mesh
-        tmp_obj: bpy.types.Object | None = None
         tmp_mesh: bpy.types.Mesh | None = None
         try:
             tmp_mesh: bpy.types.Mesh = obj.data.copy()

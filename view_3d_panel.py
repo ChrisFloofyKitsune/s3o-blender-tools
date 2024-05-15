@@ -1,8 +1,10 @@
-import bpy.utils
-from bpy.types import Panel, Context, UILayout
-from bl_ui.generic_ui_list import draw_ui_list
-from .ambient_occlusion import AOProps, ObjectExplodeEntry
 import typing
+
+import bpy.utils
+from bl_ui.generic_ui_list import draw_ui_list
+from bpy.types import Panel, Context, UILayout
+from .ambient_occlusion import AOProps, ObjectExplodeEntry
+
 
 class MainPanel(Panel):
     bl_idname = "S3O_PT_view_3d_main"
@@ -25,7 +27,7 @@ class MainPanel(Panel):
             col = body.column()
             col.prop(bpy.context.space_data.overlay, 'show_extras', text="Show Empties")
 
-    def panel_add(self, layout: UILayout, context: Context):
+    def panel_add(self, layout: UILayout, _: Context):
         (header, body) = layout.panel('s3o_add')
         header.label(text="Add")
         if body is not None:
@@ -36,7 +38,7 @@ class MainPanel(Panel):
             row.enabled = bpy.ops.s3o_tools.add_mesh_as_child.poll()
             row.operator_menu_enum("s3o_tools.add_mesh_as_child", 'mesh_type', icon='OUTLINER_OB_MESH')
 
-    def panel_import_export(self, layout: UILayout, context: Context):
+    def panel_import_export(self, layout: UILayout, _: Context):
         (header, body) = layout.panel('s3o_import_export')
         header.label(text="Import / Export")
         if body is not None:
@@ -45,7 +47,7 @@ class MainPanel(Panel):
             col.operator("s3o_tools.import_s3o", text="Import *.s3o", icon='IMPORT')
             col.operator("s3o_tools.export_s3o", text="Export *.s3o", icon='EXPORT')
 
-    def panel_util(self, layout: UILayout, context: Context):
+    def panel_util(self, layout: UILayout, _: Context):
         (header, body) = layout.panel('s3o_import_util')
         header.label(text="Utilities")
         if body is not None:
@@ -56,7 +58,7 @@ class MainPanel(Panel):
 
 class ObjectsToExplodeList(bpy.types.UIList):
     bl_idname = "S3O_UL_objects_to_explode"
-    
+
     def draw_item(
         self,
         context: Context | None,
@@ -84,11 +86,11 @@ class AOPanel(Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        
+
         col = layout.column(align=True)
         col.operator('s3o_tools_ao.to_ao_view')
         col.operator('s3o_tools_ao.to_rendered_view')
-        
+
         self.panel_settings(layout, context)
         self.panel_objs_to_explode(layout, context)
         self.panel_bake(layout, context)
@@ -106,10 +108,10 @@ class AOPanel(Panel):
         col.prop(context.scene.s3o_ao, "bias")
         col.prop(context.scene.s3o_ao, "gain")
 
-        body.use_property_split=False
+        body.use_property_split = False
         body.prop(context.scene.s3o_ao, "ground_plate")
-        body.use_property_split=True
-        
+        body.use_property_split = True
+
         plate_col = body.column(align=True)
         plate_col.active = context.scene.s3o_ao.ground_plate
         plate_col.prop(context.scene.s3o_ao, "building_plate_size_x")
@@ -159,15 +161,16 @@ class AOPanel(Panel):
             bake_box: UILayout
             bake_box.use_property_split = False
             bake_box.prop(context.scene.s3o_ao, 'bake_target', expand=True)
-        
+
         col.separator()
-        
+
         reset_row = col.row(align=True)
         reset_row.operator('s3o_tools_ao.reset_ao_value')
         reset_row.prop(context.scene.s3o_ao, 'reset_ao_value', text="")
-        
+
         col.operator('s3o_tools_ao.bake_vertex_ao')
         col.operator('s3o_tools_ao.bake_building_plate')
+
 
 def register():
     bpy.utils.register_class(MainPanel)

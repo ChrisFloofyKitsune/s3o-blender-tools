@@ -31,7 +31,7 @@ def s3o_placeholder_depsgraph_listener(*_):
 
         # did the updates start with a placeholder object being modified?
         if S3OPlaceholderProperties.poll(updates[0].id):
-            obj = updates[0].id.original
+            obj: bpy.types.Object = updates[0].id.original
             parent = obj.parent
             tag = obj.s3o_placeholder.tag
 

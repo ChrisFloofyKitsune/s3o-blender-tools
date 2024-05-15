@@ -1,5 +1,4 @@
 import itertools
-import math
 
 import bpy.utils
 from bpy.types import Operator, Context, Menu, Event
@@ -14,7 +13,7 @@ class RefreshS3OProps(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context: Context) -> set[str]:
-        props.refresh_all_s3o_props(context)
+        obj_props.refresh_all_s3o_props(context)
         return {'FINISHED'}
 
 
@@ -106,7 +105,7 @@ class AddS3ORoot(Operator):
         root.matrix_basis = util.TO_FROM_BLENDER_SPACE
         root.s3o_empty_type = 'ROOT'
 
-        s3o_root: props.S3ORootProperties = root.s3o_root
+        s3o_root: obj_props.S3ORootProperties = root.s3o_root
         s3o_root.s3o_name = self.name
         s3o_root.collision_radius = self.collision_radius
         s3o_root.height = self.height
@@ -241,7 +240,7 @@ class S3OifyExistingObjectHierarchy(Operator):
 
     @classmethod
     def poll(cls, context: Context) -> bool:
-        return context.active_object and props.get_s3o_root_object(context.active_object) is None
+        return context.active_object and obj_props.get_s3o_root_object(context.active_object) is None
 
     def invoke(self, context: Context, event: Event) -> set[str]:
         self.s3o_model_name = util.strip_suffix(context.active_object.name)
@@ -266,7 +265,7 @@ class S3OifyExistingObjectHierarchy(Operator):
         min_corner, max_corner = util.get_world_bounds_min_max(
             itertools.chain([top_level_object], top_level_object.children_recursive)
         )
- 
+
         max_corner = util.TO_FROM_BLENDER_SPACE @ max_corner
         min_corner = util.TO_FROM_BLENDER_SPACE @ min_corner
         center = (max_corner + min_corner) / 2
@@ -302,15 +301,15 @@ class S3OifyExistingObjectHierarchy(Operator):
             empty_child.s3o_empty_type = 'AIM_POINT'
             empty_child.s3o_aim_point.pos = (0, 0, 0)
             empty_child.s3o_aim_point.dir = (0, 0, 1)
-        
+
         bpy.ops.object.select_all(action='DESELECT')
         context.view_layer.objects.active = s3o_root
         s3o_root.select_set(True)
-        
+
         return {'FINISHED'}
 
 
-def add_ops_menu_func(menu: Menu, context: Context):
+def add_ops_menu_func(menu: Menu, _: Context):
     menu.layout.operator(AddS3ORoot.bl_idname, icon='EMPTY_ARROWS')
     menu.layout.operator(AddS3OAimPoint.bl_idname, icon='EMPTY_SINGLE_ARROW')
     row = menu.layout.row()

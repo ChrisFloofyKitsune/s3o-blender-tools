@@ -89,7 +89,7 @@ class ExportSpring3dObject(Operator, ExportHelper):
         options={'HIDDEN'},
         maxlen=255,
     )
-    
+
     @staticmethod
     def get_s3o_to_export(context: Context) -> S3ORootProperties:
         s3o_roots_in_scene = [o.s3o_root for o in context.scene.objects if S3ORootProperties.poll(o)]
@@ -174,17 +174,16 @@ class ImportTexturesExec(Operator):
     def execute(self, context: Context) -> set[str]:
         D = bpy.data
 
-        if (not 'BAR Material Template' in D.materials
-            or not 'BAR Shader Nodes' in D.node_groups):
+        if ('BAR Material Template' not in D.materials
+            or 'BAR Shader Nodes' not in D.node_groups):
             with util.library_load_addon_assets() as (_, data_to):
-                if not 'BAR Material Template' in D.materials:
+                if 'BAR Material Template' not in D.materials:
                     data_to.materials = ['BAR Material Template']
-                if not 'BAR Shader Nodes' in D.node_groups:
+                if 'BAR Shader Nodes' not in D.node_groups:
                     data_to.node_groups = ['BAR Shader Nodes']
 
         template_mat = bpy.data.materials['BAR Material Template']
-        
-        targets = set()
+
         if self.set_globally:
             targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
         else:
@@ -231,7 +230,6 @@ class ImportTexturesExec(Operator):
                     print("Could not the textures :(")
                     traceback.print_exception(err)
 
-            team_color = (0x7F,) * 3
             if 'arm' in root_props.s3o_name:
                 team_color = (0, 0x4D, 0xFF)
             elif 'cor' in root_props.s3o_name:

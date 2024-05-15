@@ -45,11 +45,12 @@ http://home.comcast.net/~tom_forsyth/papers/fast_vert_cache_opt.html
 
 import collections
 
+
 class VertexInfo:
     """Stores information about a vertex."""
 
     # constants used for scoring algorithm
-    CACHE_SIZE = 32 # higher values yield virtually no improvement
+    CACHE_SIZE = 32  # higher values yield virtually no improvement
     """The size of the modeled cache."""
 
     CACHE_DECAY_POWER = 1.5
@@ -57,12 +58,14 @@ class VertexInfo:
     VALENCE_BOOST_SCALE = 2.0
     VALENCE_BOOST_POWER = 0.5
 
-    def __init__(self, cache_position=-1, score=-1,
-                 triangle_indices=None):
+    def __init__(
+        self, cache_position=-1, score=-1,
+        triangle_indices=None
+    ):
         self.cache_position = cache_position
         self.score = score
         self.triangle_indices = ([] if triangle_indices is None
-                             else triangle_indices)
+                                 else triangle_indices)
 
     def update_score(self):
         if not self.triangle_indices:
@@ -73,7 +76,7 @@ class VertexInfo:
         if self.cache_position < 0:
             # not in cache
             self.score = 0
-        elif self.cache_position >= 0 and self.cache_position < 3:
+        elif 0 <= self.cache_position < 3:
             # used in last triangle
             self.score = self.LAST_TRI_SCORE
         else:
@@ -85,12 +88,14 @@ class VertexInfo:
         self.score += self.VALENCE_BOOST_SCALE * (
             len(self.triangle_indices) ** (-self.VALENCE_BOOST_POWER))
 
+
 class TriangleInfo:
     def __init__(self, added=False, score=0.0, vertex_indices=None):
         self.added = False
         self.score = 0.0
         self.vertex_indices = ([] if vertex_indices is None
                                else vertex_indices)
+
 
 class Mesh:
     """Simple mesh implementation which keeps track of which triangles
@@ -150,7 +155,8 @@ class Mesh:
                 self.triangle_infos.append(TriangleInfo(vertex_indices=verts))
                 for vertex in verts:
                     self.vertex_infos[vertex].triangle_indices.append(
-                        triangle_index)
+                        triangle_index
+                    )
                 triangle_index += 1
                 _added_triangles.add(verts)
         # calculate score of all vertices
@@ -160,7 +166,8 @@ class Mesh:
         for triangle_info in self.triangle_infos:
             triangle_info.score = sum(
                 self.vertex_infos[vertex].score
-                for vertex in triangle_info.vertex_indices)
+                    for vertex in triangle_info.vertex_indices
+            )
 
     def get_cache_optimized_triangles(self):
         """Reorder triangles in a cache efficient way.
@@ -175,9 +182,10 @@ class Mesh:
             # pick triangle with highest score
             best_triangle_index, best_triangle_info = max(
                 (triangle
-                 for triangle in enumerate(self.triangle_infos)
-                 if not triangle[1].added),
-                key=lambda triangle: triangle[1].score)
+                    for triangle in enumerate(self.triangle_infos)
+                    if not triangle[1].added),
+                key=lambda triangle: triangle[1].score
+            )
             # mark as added
             best_triangle_info.added = True
             # append to ordered list of triangles
@@ -223,13 +231,16 @@ class Mesh:
                 triangle_info = self.triangle_infos[triangle]
                 triangle_info.score = sum(
                     self.vertex_infos[vertex].score
-                    for vertex in triangle_info.vertex_indices)
+                        for vertex in triangle_info.vertex_indices
+                )
         # return result
         return triangles
+
 
 def get_cache_optimized_triangles(triangles):
     mesh = Mesh(triangles)
     return mesh.get_cache_optimized_triangles()
+
 
 def get_cache_optimized_vertex_map(triangles):
     """Map vertices so triangles have consequetive indices.
@@ -246,6 +257,7 @@ def get_cache_optimized_vertex_map(triangles):
                 vertex_map[old_vertex] = new_vertex
                 new_vertex += 1
     return vertex_map
+
 
 def average_transform_to_vertex_ratio(triangles, cache_size=32):
     """Calculate number of transforms per vertex for a given cache size
@@ -266,6 +278,8 @@ def average_transform_to_vertex_ratio(triangles, cache_size=32):
     # return result
     return float(num_misses) / float(len(vertices))
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     import doctest
+
     doctest.testmod()
