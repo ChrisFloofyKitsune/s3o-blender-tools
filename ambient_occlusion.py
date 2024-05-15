@@ -382,8 +382,9 @@ class BakePlateAO(Operator, ExportHelper):
         s3o_roots_in_scene = [o.s3o_root for o in context.scene.objects if S3ORootProperties.poll(o)]
         if len(s3o_roots_in_scene) == 1:
             return s3o_roots_in_scene[0]
-        elif context.object is not None:
-            return obj_props.get_s3o_root_object(context.object).s3o_root
+        elif context.object is not None \
+                and (root_obj := obj_props.get_s3o_root_object(context.object)) is not None:
+            return root_obj.s3o_root
 
     @classmethod
     def poll(cls, context: Context) -> bool:
