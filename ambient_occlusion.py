@@ -58,8 +58,9 @@ class AOProps(PropertyGroup):
     distance: FloatProperty(
         name='Distance',
         description='Length of rays used to check for occlusion',
+        default=128,
         min=0,
-        soft_max=64,
+        soft_max=256,
         get=get_ao_dist,
         set=set_ao_dist,
         subtype='DISTANCE',
@@ -127,7 +128,8 @@ Disable for flying units.
 
     building_plate_resolution_inner: IntProperty(
         options={"HIDDEN"},
-        default=128
+        default=64,
+        min=32
     )
 
     def get_building_plate_res(self):
@@ -145,8 +147,8 @@ Disable for flying units.
     building_plate_resolution: IntProperty(
         name="Resolution",
         description="Output AO plate image resolution in pixels",
-        min=64,
-        soft_max=1024,
+        min=32,
+        soft_max=256,
         get=get_building_plate_res,
         set=set_building_plate_res,
     )
@@ -408,9 +410,9 @@ class BakePlateAO(Operator, ExportHelper):
 
             if size_x <= 0 or size_z <= 0:
                 if size_x == 0:
-                    size_x = abs(max_corner.x - min_corner.x + 8) // 8
+                    size_x = abs(max_corner.x - min_corner.x + 16) // 8
                 if size_z == 0:
-                    size_z = abs(max_corner.y - min_corner.y + 8) // 8
+                    size_z = abs(max_corner.y - min_corner.y + 16) // 8
 
             center = (max_corner + min_corner) / 2
             center.z = 0
