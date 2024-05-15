@@ -369,7 +369,7 @@ class BakePlateAO(Operator, ExportHelper):
     bl_label = "Bake Ground Plate AO"
     bl_options = {'REGISTER'}
 
-    filename_ext = ".dds"
+    filename_ext = ".png"
 
     filter_glob: StringProperty(
         default="*.png",
@@ -410,9 +410,9 @@ class BakePlateAO(Operator, ExportHelper):
 
             if size_x <= 0 or size_z <= 0:
                 if size_x == 0:
-                    size_x = abs(max_corner.x - min_corner.x + 16) // 8
+                    size_x = abs(max_corner.x - min_corner.x + 32) // 8
                 if size_z == 0:
-                    size_z = abs(max_corner.y - min_corner.y + 16) // 8
+                    size_z = abs(max_corner.y - min_corner.y + 32) // 8
 
             center = (max_corner + min_corner) / 2
             center.z = 0
@@ -465,12 +465,12 @@ class BakePlateAO(Operator, ExportHelper):
                 if x < x_threshold:
                     val = min(val, val * x / x_threshold)
                 if x > resolution - x_threshold:
-                    val = min(val, val * (resolution - x) / x_threshold)
+                    val = min(val, val * (resolution - x - 1) / x_threshold)
 
                 if y < y_threshold:
                     val = min(val, val * y / y_threshold)
                 if y > resolution - y_threshold:
-                    val = min(val, val * (resolution - y) / y_threshold)
+                    val = min(val, val * (resolution - y - 1) / y_threshold)
 
                 ao[y, x] = int(val)
 
@@ -479,6 +479,7 @@ class BakePlateAO(Operator, ExportHelper):
                 new_pixels.extend([0, 0, 0, val / 255])
 
             temp_image.pixels = new_pixels
+            temp_image.file_format = 'PNG'
             temp_image.save(filepath=self.filepath, quality=100)
         finally:
             if plane is not None:
