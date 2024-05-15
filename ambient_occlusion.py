@@ -338,6 +338,17 @@ class BakeVertexAO(Operator):
                 for obj in ao_targets_iter(context):
                     context.view_layer.objects.active = obj
                     obj.select_set(True)
+
+                    mesh: bpy.types.Mesh = obj.data
+                    if mesh.color_attributes.get('ambient_occlusion', None) is None:
+                        mesh.color_attributes.new(
+                            name='ambient_occlusion',
+                            type='FLOAT_COLOR',
+                            domain='CORNER',
+                        )
+                        mesh.attributes.default_color_name = 'ambient_occlusion'
+                        mesh.attributes.active_color_name = 'ambient_occlusion'
+
                     bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
                     ao_val_each_get_set(obj, lambda ao_in: max(min_clamp, ao_in * gain + bias))
                     obj.select_set(False)
