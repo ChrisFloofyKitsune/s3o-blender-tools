@@ -254,11 +254,15 @@ def ao_val_each_get_set(
 
 def make_ao_vertex_bake_plate(context: Context) -> bpy.types.Object:
     min_corner, max_corner = util.get_world_bounds_min_max(ao_targets_iter(context))
+    center = (max_corner + min_corner) / 2
+    center.z = 0
 
     ao_dist = context.scene.s3o_ao.distance
     plate_thickness = abs(min_corner.z) + ao_dist / 64
     radius = (max_corner.xy - min_corner.xy).length / 2 + ao_dist
-    return util.add_ground_box(context, radius, plate_thickness)
+    box = util.add_ground_box(context, radius, plate_thickness)
+    box.location = center
+    return box
 
 
 class ToAOView(Operator):
@@ -381,22 +385,28 @@ class BakePlateAO(Operator, ExportHelper):
         prev_render_engine = context.scene.render.engine
         plane = None
 
+        temp_image = None
+        temp_material = None
+
         try:
             bpy.context.scene.render.engine = "CYCLES"
+            min_corner, max_corner = util.get_world_bounds_min_max(ao_targets_iter(context))
 
             size_x = context.scene.s3o_ao.building_plate_size_x
             size_z = context.scene.s3o_ao.building_plate_size_z
 
             if size_x <= 0 or size_z <= 0:
-                min_corner, max_corner = util.get_world_bounds_min_max(ao_targets_iter(context))
                 if size_x == 0:
                     size_x = abs(max_corner.x - min_corner.x + 8) // 8
                 if size_z == 0:
                     size_z = abs(max_corner.y - min_corner.y + 8) // 8
 
+            center = (max_corner + min_corner) / 2
+            center.z = 0
+
             resolution = context.scene.s3o_ao.building_plate_resolution
 
-            bpy.ops.mesh.primitive_plane_add(size=8, calc_uvs=True)
+            bpy.ops.mesh.primitive_plane_add(location=center, size=8, calc_uvs=True)
             plane = context.active_object
             plane.scale = (size_x, size_z, 1)
 
@@ -458,8 +468,15 @@ class BakePlateAO(Operator, ExportHelper):
             temp_image.pixels = new_pixels
             temp_image.save(filepath=self.filepath, quality=100)
         finally:
-            if plane:
+            if plane is not None:
                 bpy.data.objects.remove(plane)
+
+            if temp_image is not None:
+                bpy.data.images.remove(temp_image)
+
+            if temp_material is not None:
+                bpy.data.materials.remove(temp_material)
+
             bpy.context.scene.render.engine = prev_render_engine
         return {'FINISHED'}
 
