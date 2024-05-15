@@ -126,7 +126,8 @@ Disable for flying units.
     )
 
     building_plate_resolution_inner: IntProperty(
-        options={"HIDDEN"}
+        options={"HIDDEN"},
+        default=128
     )
 
     def get_building_plate_res(self):
@@ -146,7 +147,6 @@ Disable for flying units.
         description="Output AO plate image resolution in pixels",
         min=64,
         soft_max=1024,
-        default=128,
         get=get_building_plate_res,
         set=set_building_plate_res,
     )
