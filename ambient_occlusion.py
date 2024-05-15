@@ -380,7 +380,7 @@ class BakePlateAO(Operator, ExportHelper):
     def execute(self, context: Context) -> set[str]:
         prev_render_engine = context.scene.render.engine
         plane = None
-        
+
         try:
             bpy.context.scene.render.engine = "CYCLES"
 
