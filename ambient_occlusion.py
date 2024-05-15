@@ -457,20 +457,30 @@ class BakePlateAO(Operator, ExportHelper):
             ao = np.fmax(ao, max_darkness)  # clamp lower
             ao = 255 - ao  # invert for use as alpha channel
 
-            x_threshold = resolution / (size_x * 2)
-            y_threshold = resolution / (size_z * 2)
+            x_threshold = resolution / (size_x * 0.5)
+            y_threshold = resolution / (size_z * 0.5)
+
+            # non-linear smoothing because perceived brightness is non-linear
+            def smoothing(coord, threshold):
+                return 1 - (1 - (coord / threshold) ** math.e)
 
             # fade to 0 near edges
+            # I cannot spot a visible difference between
+            # val = min(val, val * smooth) and val = val * smooth
             for (y, x), val in np.ndenumerate(ao):
                 if x < x_threshold:
-                    val = min(val, val * x / x_threshold)
+                    val = min(val, val * smoothing(x, x_threshold))
+                    # val *= smoothing(x, x_threshold)
                 if x > resolution - x_threshold:
-                    val = min(val, val * (resolution - x - 1) / x_threshold)
+                    val = min(val, val * smoothing(resolution - x - 1, x_threshold))
+                    # val *= smoothing(resolution - x - 1, x_threshold)
 
                 if y < y_threshold:
-                    val = min(val, val * y / y_threshold)
+                    val = min(val, val * smoothing(y, y_threshold))
+                    # val *= smoothing(y, y_threshold)
                 if y > resolution - y_threshold:
-                    val = min(val, val * (resolution - y - 1) / y_threshold)
+                    val = min(val, val * smoothing(resolution - y - 1, y_threshold))
+                    # val *= smoothing(resolution - y - 1, y_threshold)
 
                 ao[y, x] = int(val)
 
