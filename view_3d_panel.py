@@ -103,6 +103,7 @@ class AOPanel(Panel):
         if body is None:
             return
         col = body.column(align=True)
+        col.prop(context.scene.s3o_ao, "min_distance", slider=True)
         col.prop(context.scene.s3o_ao, "distance", slider=True)
         col.prop(context.scene.s3o_ao, "min_clamp")
         col.prop(context.scene.s3o_ao, "bias")

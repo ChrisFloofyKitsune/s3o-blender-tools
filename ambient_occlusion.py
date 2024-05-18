@@ -3,6 +3,7 @@ from collections.abc import Iterator, Callable
 from contextlib import AbstractContextManager
 
 import numpy as np
+import numpy.typing as npt
 
 import bmesh
 import bpy
@@ -49,6 +50,16 @@ class RemoveObjExplodeEntry(Operator):
 
 
 class AOProps(PropertyGroup):
+    min_distance: FloatProperty(
+        name='Min Distance',
+        description="",
+        default=1,
+        min=0,
+        soft_max=8,
+        subtype='DISTANCE',
+        options=set(),
+    )
+
     def get_ao_dist(self):
         return bpy.context.scene.world.light_settings.distance
 
@@ -230,28 +241,48 @@ def ao_targets_iter(context: Context) -> Iterator[bpy.types.Object]:
                 yield context.active_object
 
 
-def ao_val_each_get_set(
-    input_data: bpy.types.Object | bmesh.types.BMesh,
+def ensure_ao_layer(obj: bpy.types.Object) -> bpy.types.FloatColorAttribute:
+    mesh: bpy.types.Mesh = obj.data
+    if 'ambient_occlusion' not in mesh.color_attributes:
+        mesh.color_attributes.new(
+            name='ambient_occlusion',
+            type='FLOAT_COLOR',
+            domain='CORNER',
+        )
+
+    mesh.attributes.default_color_name = 'ambient_occlusion'
+    mesh.attributes.active_color_name = 'ambient_occlusion'
+
+    return mesh.color_attributes.get('ambient_occlusion')
+
+
+def ao_vals_get(obj: bpy.types.Object) -> np.ndarray:
+    ao_layer = ensure_ao_layer(obj)
+    colors = np.zeros(shape=len(ao_layer.data) * 4, dtype=np.single)
+    ao_layer.data.foreach_get('color', colors)
+    return colors.reshape((-1, 4))[:, 0:3].max(axis=1)
+
+
+def ao_vals_set(obj: bpy.types.Object, values: npt.ArrayLike):
+    ao_layer = ensure_ao_layer(obj)
+
+    values = np.broadcast_to(values, len(ao_layer.data))
+    values = values.clip(0, 1)
+
+    colors = np.repeat(values, 3).reshape((-1, 3))
+    colors = np.insert(colors, 3, 1, axis=1)
+
+    ao_layer.data.foreach_set('color', colors.ravel())
+    obj.update_tag()
+
+
+def ao_val_foreach_get_set(
+    obj: bpy.types.Object,
     func: Callable[[float], float]
 ):
-    if isinstance(input_data, bmesh.types.BMesh):
-        bm = input_data
-    else:
-        bm = bmesh.new(use_operators=False)
-        bm.from_mesh(input_data.data)
-
-    ao_data = bm.loops.layers.float_color.get(
-        'ambient_occlusion',
-        bm.loops.layers.float_color.new('ambient_occlusion')
-    )
-
-    for face in bm.faces:
-        for face_corner in face.loops:
-            new_ao_val = min(1.0, max(0.0, func(max(face_corner[ao_data][0:3]))))
-            face_corner[ao_data] = (*((new_ao_val,) * 3), 1)
-
-    if bm is not input_data:
-        bm.to_mesh(input_data.data)
+    ao_vals = ao_vals_get(obj)
+    ao_vals = np.frompyfunc(func, 1, 1)(ao_vals)
+    ao_vals_set(obj, ao_vals)
 
 
 def make_ao_vertex_bake_plate(context: Context) -> bpy.types.Object:
@@ -259,9 +290,10 @@ def make_ao_vertex_bake_plate(context: Context) -> bpy.types.Object:
     center = (max_corner + min_corner) / 2
     center.z = 0
 
+    min_dist = context.scene.s3o_ao.min_distance
     ao_dist = context.scene.s3o_ao.distance
-    plate_thickness = abs(min_corner.z) + ao_dist / 64
-    radius = (max_corner.xy - min_corner.xy).length / 2 + ao_dist
+    plate_thickness = abs(min_corner.z) + max(1, min_dist, ao_dist / 64) * 2
+    radius = (max_corner.xy - min_corner.xy).length / 2 + min_dist + ao_dist
     box = util.add_ground_box(context, radius, plate_thickness)
     box.location = center
     return box
@@ -302,9 +334,8 @@ class ResetAO(Operator):
     def execute(self, context: Context) -> set[str]:
         reset_val = context.scene.s3o_ao.reset_ao_value
 
-        bpy.ops.object.select_all(action='DESELECT')
         for obj in ao_targets_iter(context):
-            ao_val_each_get_set(obj, lambda _: reset_val)
+            ao_vals_set(obj, reset_val)
 
         return {"FINISHED"}
 
@@ -332,29 +363,69 @@ class BakeVertexAO(Operator):
 
             bpy.ops.object.select_all(action='DESELECT')
 
-            min_clamp = context.scene.s3o_ao.min_clamp
-            gain = context.scene.s3o_ao.gain
-            bias = context.scene.s3o_ao.bias
+            ao_props: AOProps = context.scene.s3o_ao
+            min_dist = ao_props.min_distance
+            min_clamp = ao_props.min_clamp
+            gain = ao_props.gain
+            bias = ao_props.bias
+
+            def ao_adjust(ao_in):
+                return max(min_clamp, ao_in * gain + bias)
 
             with ExplodeObjectsForBake(context):
                 for obj in ao_targets_iter(context):
                     context.view_layer.objects.active = obj
                     obj.select_set(True)
 
-                    mesh: bpy.types.Mesh = obj.data
-                    if mesh.color_attributes.get('ambient_occlusion', None) is None:
-                        mesh.color_attributes.new(
-                            name='ambient_occlusion',
-                            type='FLOAT_COLOR',
-                            domain='CORNER',
-                        )
-                    
-                    # always bake to AO
-                    mesh.attributes.default_color_name = 'ambient_occlusion'
-                    mesh.attributes.active_color_name = 'ambient_occlusion'
+                    ensure_ao_layer(obj)
+                    if min_dist > 0:
+                        orig_dist = ao_props.distance
+                        
+                        ao_props.distance = min_dist
+                        if plate is not None:
+                            plate.hide_render = True
+                        bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
+                        min_ao_data = ao_vals_get(obj)
 
-                    bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
-                    ao_val_each_get_set(obj, lambda ao_in: max(min_clamp, ao_in * gain + bias))
+                        ao_props.distance = orig_dist
+                        if plate is not None:
+                            plate.hide_render = False
+                        bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
+                        ao_data = ao_vals_get(obj)
+
+                        mesh: bpy.types.Mesh = obj.data
+                        bm = bmesh.new()
+                        bm.from_mesh(mesh)
+                        bm.verts.ensure_lookup_table()
+
+                        corners_to_fix = set(np.flatnonzero(np.isclose(min_ao_data, 0, atol=0.05)))
+                        for corner_idx in corners_to_fix:
+                            vert_idx = mesh.loops[corner_idx].vertex_index
+                            bm_loop = next(l for l in bm.verts[vert_idx].link_loops if l.index == corner_idx)
+
+                            other_loops = list(
+                                l for l in {*list(bm_loop.face.loops), *list(bm_loop.link_loops)} if
+                                    l.index not in corners_to_fix
+                            )
+
+                            if len(other_loops) != 0:
+                                ao_data[corner_idx] = min([ao_data[l.index] for l in other_loops])
+
+                            mesh_vert = mesh.vertices[vert_idx]
+                            if mesh_vert.co.y > 0.5:
+                                mesh_vert.select |= ao_data[corner_idx] <= 0.9
+
+                        ao_data = np.interp(ao_data, [min(ao_data), max(ao_data)], [0, 1])
+                        ao_data = np.frompyfunc(ao_adjust, 1, 1)(ao_data)
+
+                        ao_vals_set(obj, ao_data)
+                        bpy.ops.paint.vertex_paint_toggle()
+                        mesh.use_paint_mask_vertex = True
+                        bpy.ops.paint.vertex_color_smooth()
+                        bpy.ops.paint.vertex_paint_toggle()
+                    else:
+                        bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
+                        ao_val_foreach_get_set(obj, ao_adjust)
                     obj.select_set(False)
 
         finally:
@@ -449,7 +520,7 @@ class BakePlateAO(Operator, ExportHelper):
             pixel_vals = np.reshape(temp_image.pixels, (resolution, resolution, temp_image.channels))
             # pixel values are going to be 0-1 in rgb and 1 in a
             # extract the rgb vals and remap to [0, 255]
-            ao: np.ndarray = (pixel_vals.min(2) * 255).astype(np.uint16)
+            ao: np.ndarray = (pixel_vals[:, :, 0:3].max(2) * 255).astype(np.uint16)
 
             # #BlameBeherith, for I merely ported his code
             modifier = 255 - min(ao[0, 0], ao[0, -1], ao[-1, 0], ao[-1, -1]) - 3

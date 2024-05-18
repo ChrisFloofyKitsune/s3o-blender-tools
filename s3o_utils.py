@@ -298,7 +298,7 @@ def blender_obj_to_piece(obj: bpy.types.Object) -> S3OPiece | None:
                 @classmethod
                 def from_loop_index(cls, l_idx: int) -> Self:
                     uv = tuple(uv_layer.uv[l_idx].vector)
-                    ao = ao_layer.data[l_idx].color[0] if ao_layer is not None else 0.9
+                    ao = max(ao_layer.data[l_idx].color[0:3]) if ao_layer is not None else 0.9
                     norm = tuple(tmp_mesh.corner_normals[l_idx].vector)
                     v_idx = tmp_mesh.loops[l_idx].vertex_index
                     return FaceCornerData(uv, ao, norm, v_idx)
