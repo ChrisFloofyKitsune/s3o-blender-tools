@@ -15,25 +15,26 @@ Equally big thanks to the Beyond All Reason community for making awesome models-
 3. You will also want to download the models (and source code and stuff) from the [Beyond All Reason GitHub repo](https://github.com/beyond-all-reason/Beyond-All-Reason)
    * Or for whatever game you are making models for...
 4. In the top left toolbar, open the "Edit" menu and click "Preferences"
-
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/06e93d8a-767b-4aef-94a0-ce29b2ea9e46)
-
 5. Inside the Preferences window, go the "Add-ons" tab, then click Install
 
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/04433979-8856-42ce-84a2-9a6cf4f8b279)
+<img width="30%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/06e93d8a-767b-4aef-94a0-ce29b2ea9e46">
+<img width="50%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/04433979-8856-42ce-84a2-9a6cf4f8b279">
 
 6. This will open a File Menu. Go to where you downloaded the s3o Tools zip file and then click "Install Add-on"
 7. After that, the Add-ons tab will change to show the newly installed addon with a grayed out label reading "Import-Export: Spring 3D Object (*.s3o) Tools".
-   Click the checkbox on the side of the label to enable s3o Tools. Now you can close the Preferences window.
-
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/f0210c53-7cde-4d81-bf61-fe420e27e1fa)
-
+   * Click the checkbox on the side of the label to enable s3o Tools. Now you can close the Preferences window.
 8. In the 3D Viewport, there should be a new "S3O" tab on the right sidebar.
-   If you do not see it, hover your mouse over the 3D View and hit "N" on your keyboard to open up the sidebar (or click the tiny little arrow in the top right of the 3D view).
+   * If you do not see it, hover your mouse over the 3D View and hit "N" on your keyboard to open up the sidebar (or click the tiny little arrow in the top right of the 3D view).
+
+<img width="50%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/f0210c53-7cde-4d81-bf61-fe420e27e1fa">
+<img width="40%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/732c4d80-3c52-4c7f-8748-f6ac3726d0d7">
 
 # Using s3o Tools
 
 Inside the S3O Tab there are a couple of menus.
+
+<img align="right" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/e5943569-714f-4047-a953-3449f33fa3a9">
+<img align="right" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/c6a04966-0265-4431-a872-579e66f312c6">
 
 ## Menus
 
@@ -43,12 +44,8 @@ Hover over each and every option to get a description of what it does.
 ### S3O Tools Menu
 The S3O Tools menu has the general tools for use in editing/creating models.
 
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/c6a04966-0265-4431-a872-579e66f312c6)
-
 ### Ambient Occlusion
 The Ambient Occlusion menu is used for baking Ambient Occlusion (AO)- either into the model's vertices or into a baseplate image (for buildings).
-
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/e5943569-714f-4047-a953-3449f33fa3a9)
 
 # Import / Export
 ### Importing
@@ -82,8 +79,8 @@ s3o models are represented in Blender using a "S3O Root" object that sorts prope
 * Color Texture / Other Texture: The name of the textures the model uses. These are used in game and by s3o Tools to locate the texture atlases for the model.
   * Examples: "arm_color.dds"/"arm_other.dds", "cor_color.dds"/"cor_other.dds", "leg_color.dds"/"leg_shader.dds"
 
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/3a7e0c52-a93d-42c0-941b-bc6548352508)
- ![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/fb99051e-cec5-44c2-a36a-a99cc9d3e92f)
+<img width="40%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/3a7e0c52-a93d-42c0-941b-bc6548352508">
+<img width="50%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/fb99051e-cec5-44c2-a36a-a99cc9d3e92f">
 
 #### Placeholders
 * The position of the Root object is represented by a set of XYZ axes.
@@ -99,8 +96,8 @@ Usually these are left pointing straight forwards since the model and any guns f
 * Aim Position/Direction: These control where effects, bullets, smoke, etc spawn and what direction they are to initially move in.
 * Align Direction to Rotation: **\[s3o Tools only\]** Toggle this to make the Aim Direction follow the Aim Point's rotation in Blender
 
-![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/7af6a8a4-590e-471c-8d19-5c366f23efb6)
- ![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/8597e19a-ce57-4fdb-afb4-ca7a64abe29e)
+<img width="50%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/7af6a8a4-590e-471c-8d19-5c366f23efb6">
+<img width="40%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/8597e19a-ce57-4fdb-afb4-ca7a64abe29e">
 
 #### Placeholders
 * The location of the Aim Point object is a small sphere.
@@ -111,6 +108,8 @@ Usually these are left pointing straight forwards since the model and any guns f
 Baked Ambient Occlusion data is properly extracted and is imported into a Color Attribute called "ambient_occlusion", allowing direct editing of the AO data via the Vertex Paint tools.
 
 Check out the tooltips for descriptions on what each button and option in the menu does.
+
+![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/b794ed69-d903-4986-83a6-a601b9308891)
 
 ### Change Log
 * v0.1.0: Initial Release
