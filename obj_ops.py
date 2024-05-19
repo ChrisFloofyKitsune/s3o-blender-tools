@@ -200,7 +200,7 @@ class AddMeshAsChild(Operator):
 
 
 class S3OifyExistingObjectHierarchy(Operator):
-    """ Prepare existing Object Parent->Child Hierarchy for S3O Export """
+    """ Create a copy of an existing Object Parent->Child Hierarchy and prepare it for S3O Export """
     bl_idname = "s3o_tools.s3oify_object_hierarchy"
     bl_label = "S3Oify Object Hierarchy"
     bl_options = {'REGISTER', 'UNDO'}
@@ -209,8 +209,21 @@ class S3OifyExistingObjectHierarchy(Operator):
         name="S3O Model Name"
     )
 
-    create_copy: bpy.props.BoolProperty(
-        name="Create Copy",
+    apply_rotation_transforms: bpy.props.BoolProperty(
+        name="Apply Rotation Transforms",
+        description="Apply Rotations to the copy's mesh data",
+        default=True,
+    )
+
+    apply_scale_transforms: bpy.props.BoolProperty(
+        name="Apply Scale Transforms",
+        description="Apply Scaling to the copy's mesh data",
+        default=True,
+    )
+
+    apply_modifiers: bpy.props.BoolProperty(
+        name="Apply Modifiers",
+        description="Apply all Modifiers to the copy's mesh data",
         default=True,
     )
 
@@ -253,14 +266,28 @@ class S3OifyExistingObjectHierarchy(Operator):
         while top_level_object.parent is not None:
             top_level_object = top_level_object.parent
 
-        # Create Copy ?
-        if self.create_copy:
-            bpy.ops.object.select_all(action='DESELECT')
-            context.view_layer.objects.active = top_level_object
-            top_level_object.select_set(True)
-            bpy.ops.object.select_grouped(extend=True, type='CHILDREN_RECURSIVE')
-            bpy.ops.object.duplicate()
-            top_level_object = context.active_object
+        bpy.ops.object.select_all(action='DESELECT')
+        context.view_layer.objects.active = top_level_object
+        top_level_object.select_set(True)
+        bpy.ops.object.select_grouped(extend=True, type='CHILDREN_RECURSIVE')
+        bpy.ops.object.duplicate()
+        top_level_object = context.active_object
+
+        if self.apply_modifiers:
+            for obj in (o for o in util.depth_first_child_iteration(top_level_object) if o.type == 'MESH'):
+                for m in obj.modifiers:
+                    with context.temp_override(**{'object': obj, 'modifier': m}):
+                        if bpy.ops.object.modifier_apply.poll():
+                            bpy.ops.object.modifier_apply(modifier=m.name)
+                        else:
+                            bpy.ops.object.modifier_remove(modifier=m.name)
+
+        if self.apply_rotation_transforms or self.apply_scale_transforms:
+            bpy.ops.object.transform_apply(
+                location=False,
+                rotation=self.apply_rotation_transforms,
+                scale=self.apply_scale_transforms,
+            )
 
         min_corner, max_corner = util.get_world_bounds_min_max(
             itertools.chain([top_level_object], top_level_object.children_recursive)
