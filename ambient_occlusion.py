@@ -353,11 +353,12 @@ class BakeVertexAO(Operator):
     def execute(self, context: Context) -> set[str]:
         prev_render_engine = context.scene.render.engine
         plate = None
+        prev_selection = list(context.selected_objects)
+        prev_active = context.active_object
 
         try:
             bpy.context.scene.render.engine = 'CYCLES'
             if context.scene.s3o_ao.ground_plate:
-                prev_active = context.active_object
                 plate = make_ao_vertex_bake_plate(context)
                 context.view_layer.objects.active = prev_active
 
@@ -374,13 +375,30 @@ class BakeVertexAO(Operator):
 
             with ExplodeObjectsForBake(context):
                 for obj in ao_targets_iter(context):
-                    context.view_layer.objects.active = obj
-                    obj.select_set(True)
+                    if obj.hide_render:
+                        continue
 
                     ensure_ao_layer(obj)
+                    starting_mode = obj.mode
+
+                    context.view_layer.objects.active = obj
+                    obj.select_set(True)
+                    bpy.ops.object.mode_set(mode='OBJECT')
+
+                    orig_object = obj
+                    bpy.ops.object.duplicate()
+                    obj = context.active_object
+
+                    orig_object.hide_render = True
+
+                    bm = bmesh.new()
+                    bm.from_mesh(obj.data)
+                    bmesh.ops.split_edges(bm, edges=list(e for e in bm.edges if not e.smooth))
+                    bm.to_mesh(obj.data)
+
                     if min_dist > 0:
                         orig_dist = ao_props.distance
-                        
+
                         ao_props.distance = min_dist
                         if plate is not None:
                             plate.hide_render = True
@@ -426,12 +444,21 @@ class BakeVertexAO(Operator):
                     else:
                         bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
                         ao_val_foreach_get_set(obj, ao_adjust)
-                    obj.select_set(False)
+                    
+                    ao_vals_set(orig_object, ao_vals_get(obj))
+                    bpy.data.objects.remove(object=obj)
+
+                    orig_object.hide_render = False
+                    with context.temp_override(**{'object': orig_object, 'active_object': orig_object}):
+                        bpy.ops.object.mode_set(mode=starting_mode)
 
         finally:
             if plate is not None:
                 bpy.data.objects.remove(plate)
             bpy.context.scene.render.engine = prev_render_engine
+            for obj in prev_selection:
+                obj.select_set(True)
+            context.view_layer.objects.active = prev_active
 
         return {'FINISHED'}
 
@@ -456,7 +483,7 @@ class BakePlateAO(Operator, ExportHelper):
         if len(s3o_roots_in_scene) == 1:
             return s3o_roots_in_scene[0]
         elif context.object is not None \
-                and (root_obj := obj_props.get_s3o_root_object(context.object)) is not None:
+            and (root_obj := obj_props.get_s3o_root_object(context.object)) is not None:
             return root_obj.s3o_root
 
     @classmethod
