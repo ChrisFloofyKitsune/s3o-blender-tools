@@ -117,3 +117,7 @@ Check out the tooltips for descriptions on what each button and option in the me
 * v0.2.0: Full Ambient Occlusion baking toolset, check tooltips for info. Should have all the AO-related functionality that OBJ2S3O did... save for batch baking.
 * v0.2.1: AO baking plates are centered under the model. Fix errors on model import/export.
 * v0.2.2: Ensure 'ambient_occlusion' attribute exists before baking to it. Tweak AO settings min/max. Improved building groundplate AO edge smoothing.
+* v0.2.3 Changes:
+  * Add new "Min Distance" feature to the Vertex AO baking. It attempts to remove black spots caused by things such as intersecting faces and smooths out the end result.
+  * Add Apply Rotation/Scale/Modifiers options to the S3Oify Object Hierarchy tool.
+* v0.2.4 Changes: Improve AO baking result a bit more by making a copy of the mesh and splitting it across the sharp edges before baking-- then saving results to the original mesh.
