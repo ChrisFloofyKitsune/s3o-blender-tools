@@ -116,14 +116,11 @@ def make_bl_obj_from_s3o_mesh(
     # store this now so that values are not overlooked as a result of the de-duplication steps
     v_ambient_occlusion: list[float] = [v.ambient_occlusion for v in p_vertices]
 
-    duplicate_verts = []
-
     if merge_vertices:
         duplicate_verts = util.make_duplicates_mapping(p_vertices, 0.001)
 
         for i, current_vert_index in enumerate(idx_pair[0] for idx_pair in p_indices):
-            if current_vert_index in duplicate_verts:
-                p_indices[i] = (duplicate_verts[current_vert_index], p_indices[i][1])
+            p_indices[i] = (duplicate_verts[current_vert_index], p_indices[i][1])
 
     type_face_indices = list[tuple[int, int, int, int]]
 
@@ -144,19 +141,20 @@ def make_bl_obj_from_s3o_mesh(
     # tex_coords are always considered unique per vertex
     v_tex_coords: dict[int, Vector] = {}
 
-    for i, vertex in ((i, v) for i, v in enumerate(p_vertices) if i not in duplicate_verts):
-        (v_positions[i], v_normals[i], v_tex_coords[i]) = vertex
+    for i, vertex in enumerate(p_vertices):
+        v_positions[i] = vertex.position
+        v_normals[i] = vertex.normal
+        v_tex_coords[i] = vertex.tex_coords
 
     if merge_vertices:
         duplicate_positions = util.make_duplicates_mapping(v_positions, 0.002)
-        norms_to_check = {i: v_normals[i] for i in duplicate_positions.keys()}
-        duplicate_normals = util.make_duplicates_mapping(norms_to_check, 0.01)
+        duplicate_normals = util.make_duplicates_mapping(v_normals, 0.01)
 
         for face_indices in face_indices_list:
             for i, (pos_idx, norm_idx, tex_coord_idx, ao_idx) in enumerate(face_indices):
                 face_indices[i] = (
-                    duplicate_positions[pos_idx] if pos_idx in duplicate_positions else pos_idx,
-                    duplicate_normals[norm_idx] if norm_idx in duplicate_normals else norm_idx,
+                    duplicate_positions[pos_idx],
+                    duplicate_normals[norm_idx],
                     tex_coord_idx,
                     ao_idx
                 )

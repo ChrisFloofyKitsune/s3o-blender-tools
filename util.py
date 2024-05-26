@@ -56,12 +56,12 @@ def extract_null_terminated_string(data: bytes, offset: int) -> str:
 def make_duplicates_mapping(
     values: dict[int, npt.ArrayLike] | npt.ArrayLike,
     tolerance=0.001,
-) -> dict[int, int]:
+) -> npt.NDArray[int]:
     np_array: npt.NDArray
     try:
         if type(values) is dict:
             if len(values) == 0:
-                return dict()
+                return np.array([], dtype=int)
             example_array = np.array(next(iter(values.values()), ()))
             np_array = np.full_like(
                 example_array, fill_value=np.nan, shape=(max(values.keys()) + 1, *example_array.shape)
@@ -70,9 +70,9 @@ def make_duplicates_mapping(
         else:
             np_array = np.array(values)
             if np_array.size == 0:
-                return {}
+                return np.array([], dtype=int)
 
-        indexes_of_originals = np.arange(len(np_array), dtype=int)
+        idx_to_orig_idx = np.arange(len(np_array), dtype=int)
 
         for idx in range(len(np_array) - 1):
             current_value = np_array[idx]
@@ -80,15 +80,14 @@ def make_duplicates_mapping(
             # skip if value is "empty" or if this value was already marked as a duplicate
             if np.all(np.isnan(current_value)):
                 continue
-            if indexes_of_originals[idx] < idx:
+            if idx_to_orig_idx[idx] < idx:
                 continue
 
-            slice_compare_results = np.isclose(np_array[idx + 1:], current_value, atol=tolerance)
-            slice_compare_results = np.logical_and.reduce(slice_compare_results, (*range(0, np_array.ndim),)[1:])
-            np.copyto(indexes_of_originals[idx + 1:], idx, where=slice_compare_results)
-        result = {idx: orig_idx for idx, orig_idx in enumerate(indexes_of_originals) if idx != orig_idx}
-        return result
             slice_compare_results = np.isclose(np_array[idx + 1:], current_value, atol=tolerance, rtol=0)
+            # exclude first axis
+            slice_compare_results = np.all(slice_compare_results, axis=tuple(range(1, np_array.ndim)))
+            np.copyto(idx_to_orig_idx[idx + 1:], idx, where=slice_compare_results)
+        return idx_to_orig_idx
 
     except Exception as err:
         print("WARNING could not find dupes!", err)
