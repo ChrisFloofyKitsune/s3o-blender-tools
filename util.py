@@ -88,6 +88,7 @@ def make_duplicates_mapping(
             np.copyto(indexes_of_originals[idx + 1:], idx, where=slice_compare_results)
         result = {idx: orig_idx for idx, orig_idx in enumerate(indexes_of_originals) if idx != orig_idx}
         return result
+            slice_compare_results = np.isclose(np_array[idx + 1:], current_value, atol=tolerance, rtol=0)
 
     except Exception as err:
         print("WARNING could not find dupes!", err)

@@ -416,7 +416,7 @@ class BakeVertexAO(Operator):
                         bm.from_mesh(mesh)
                         bm.verts.ensure_lookup_table()
 
-                        corners_to_fix = set(np.flatnonzero(np.isclose(min_ao_data, 0, atol=0.05)))
+                        corners_to_fix = set(np.flatnonzero(np.isclose(min_ao_data, 0, atol=0.05, rtol=0)))
                         for corner_idx in corners_to_fix:
                             vert_idx = mesh.loops[corner_idx].vertex_index
                             bm_loop = next(l for l in bm.verts[vert_idx].link_loops if l.index == corner_idx)
