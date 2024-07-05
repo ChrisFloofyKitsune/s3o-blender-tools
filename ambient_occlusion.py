@@ -267,7 +267,8 @@ def ao_vals_set(obj: bpy.types.Object, values: npt.ArrayLike):
     ao_layer = ensure_ao_layer(obj)
 
     values = np.broadcast_to(values, len(ao_layer.data))
-    values = values.clip(0, 1)
+    # use very small value as pure 0 represents a lack of AO data in the Blender shader
+    values = values.clip(10**-5, 1)
 
     colors = np.repeat(values, 3).reshape((-1, 3))
     colors = np.insert(colors, 3, 1, axis=1)
