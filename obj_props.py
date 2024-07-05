@@ -264,8 +264,8 @@ def get_or_create_placeholder_empty(
 def refresh_all_s3o_props(context: Context | None = None):
     for obj in bpy.data.objects:
         for prop_name in obj.keys():
-            prop = getattr(obj, prop_name)
-            if isinstance(prop, S3OPropertyGroup):
+            prop = getattr(obj, prop_name, None)
+            if prop is not None and isinstance(prop, S3OPropertyGroup):
                 if prop.poll(obj):
                     prop.update(context)
 
