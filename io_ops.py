@@ -3,7 +3,7 @@ import traceback
 
 import bpy
 from bpy.props import StringProperty, BoolProperty
-from bpy.types import Operator, Context, Menu, Event, bpy_prop_collection, ID
+from bpy.types import Operator, Context, Menu, Event, Material
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from . import s3o, s3o_utils, util, obj_props
 from .obj_props import S3ORootProperties
@@ -174,21 +174,22 @@ class ImportTexturesExec(Operator):
     def execute(self, context: Context) -> set[str]:
         D = bpy.data
 
-        def needs_loaded(*pairs: tuple[bpy_prop_collection[ID], str]):
+        def needs_loaded(*pairs: tuple[any, str]):
             missing_assets = False
             for (data, asset_name) in pairs:
                 if asset_name not in data:
                     missing_assets |= True
-
-                asset = data[asset_name]
-                missing_assets |= asset is None or asset.is_missing()
+                else:
+                    asset = data[asset_name]
+                    missing_assets |= asset is None or asset.is_missing
 
             if not missing_assets:
                 return False
 
             for (data, asset_name) in pairs:
                 if asset_name in data:
-                    delattr(data, asset_name)
+                    data.remove(data[asset_name])
+            return True
 
         if needs_loaded((D.materials, 'BAR Material Template'), (D.node_groups, 'BAR Shader Nodes')):
             with util.library_load_addon_assets() as (_, data_to):
@@ -208,9 +209,17 @@ class ImportTexturesExec(Operator):
             root_props: S3ORootProperties = root_obj.s3o_root
             new_mat_name = root_props.s3o_name + '.material'
 
+            new_mat: Material | None = None
             if new_mat_name in D.materials:
-                new_mat = D.materials[new_mat_name]
-            else:
+                new_mat: Material = D.materials[new_mat_name]
+
+                if (new_mat is not None and
+                    (new_mat.is_missing or new_mat.node_tree.nodes['BAR Shader Nodes'].node_tree is None)
+                ):
+                    D.materials.remove(new_mat)
+                    new_mat = None
+
+            if new_mat is None:
                 new_mat = template_mat.copy()
                 new_mat.name = new_mat_name
 
