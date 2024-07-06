@@ -268,7 +268,7 @@ def ao_vals_set(obj: bpy.types.Object, values: npt.ArrayLike):
 
     values = np.broadcast_to(values, len(ao_layer.data))
     # use very small value as pure 0 represents a lack of AO data in the Blender shader
-    values = values.clip(10**-5, 1)
+    values = values.clip(10 ** -5, 1)
 
     colors = np.repeat(values, 3).reshape((-1, 3))
     colors = np.insert(colors, 3, 1, axis=1)
@@ -445,7 +445,7 @@ class BakeVertexAO(Operator):
                     else:
                         bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
                         ao_val_foreach_get_set(obj, ao_adjust)
-                    
+
                     ao_vals_set(orig_object, ao_vals_get(obj))
                     bpy.data.objects.remove(object=obj)
 
