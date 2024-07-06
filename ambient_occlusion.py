@@ -338,6 +338,7 @@ class ResetAO(Operator):
         for obj in ao_targets_iter(context):
             ao_vals_set(obj, reset_val)
 
+        bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
         return {"FINISHED"}
 
 
