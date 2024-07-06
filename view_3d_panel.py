@@ -5,10 +5,12 @@ from bl_ui.generic_ui_list import draw_ui_list
 from bpy.types import Panel, Context, UILayout
 from .ambient_occlusion import AOProps, ObjectExplodeEntry
 
+from . import bl_info
+
 
 class MainPanel(Panel):
     bl_idname = "S3O_PT_view_3d_main"
-    bl_label = "S3O Tools"
+    bl_label = f"S3O Tools v{'.'.join(str(x) for x in bl_info['version'])}"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "S3O"
