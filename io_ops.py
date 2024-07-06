@@ -3,7 +3,7 @@ import traceback
 
 import bpy
 from bpy.props import StringProperty, BoolProperty
-from bpy.types import Operator, Context, Menu, Event
+from bpy.types import Operator, Context, Menu, Event, bpy_prop_collection, ID
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from . import s3o, s3o_utils, util, obj_props
 from .obj_props import S3ORootProperties
@@ -174,15 +174,28 @@ class ImportTexturesExec(Operator):
     def execute(self, context: Context) -> set[str]:
         D = bpy.data
 
-        if ('BAR Material Template' not in D.materials
-            or 'BAR Shader Nodes' not in D.node_groups):
-            with util.library_load_addon_assets() as (_, data_to):
-                if 'BAR Material Template' not in D.materials:
-                    data_to.materials = ['BAR Material Template']
-                if 'BAR Shader Nodes' not in D.node_groups:
-                    data_to.node_groups = ['BAR Shader Nodes']
+        def needs_loaded(*pairs: tuple[bpy_prop_collection[ID], str]):
+            missing_assets = False
+            for (data, asset_name) in pairs:
+                if asset_name not in data:
+                    missing_assets |= True
 
-        template_mat = bpy.data.materials['BAR Material Template']
+                asset = data[asset_name]
+                missing_assets |= asset is None or asset.is_missing()
+
+            if not missing_assets:
+                return False
+
+            for (data, asset_name) in pairs:
+                if asset_name in data:
+                    delattr(data, asset_name)
+
+        if needs_loaded((D.materials, 'BAR Material Template'), (D.node_groups, 'BAR Shader Nodes')):
+            with util.library_load_addon_assets() as (_, data_to):
+                data_to.materials = ['BAR Material Template']
+                data_to.node_groups = ['BAR Shader Nodes']
+
+        template_mat = D.materials['BAR Material Template']
 
         if self.set_globally:
             targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
@@ -194,14 +207,18 @@ class ImportTexturesExec(Operator):
         for root_obj in targets:
             root_props: S3ORootProperties = root_obj.s3o_root
             new_mat_name = root_props.s3o_name + '.material'
-            new_mat = D.materials[new_mat_name] if new_mat_name in D.materials else template_mat.copy()
-            new_mat.name = new_mat_name
+
+            if new_mat_name in D.materials:
+                new_mat = D.materials[new_mat_name]
+            else:
+                new_mat = template_mat.copy()
+                new_mat.name = new_mat_name
 
             if self.directory != '':
                 print(f'Attempting to load textures from: {self.directory}')
                 try:
                     tex1 = D.images.load(os.path.join(self.directory, root_props.texture_path_1), check_existing=True)
-                    tex1.alpha_mode = 'CHANNEL_PACKED'
+                    tex1.alpha_mode = 'NONE'
 
                     tex2 = D.images.load(os.path.join(self.directory, root_props.texture_path_2), check_existing=True)
                     tex2.colorspace_settings.name = 'Non-Color'
