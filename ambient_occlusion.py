@@ -61,10 +61,11 @@ class AOProps(PropertyGroup):
     )
 
     def get_ao_dist(self):
-        return bpy.context.scene.world.light_settings.distance
+        return bpy.context.scene.world.light_settings.distance if bpy.context.scene.world else 0
 
     def set_ao_dist(self, value):
-        bpy.context.scene.world.light_settings.distance = value
+        if bpy.context.scene.world:
+            bpy.context.scene.world.light_settings.distance = value
 
     distance: FloatProperty(
         name='Distance',
@@ -390,6 +391,7 @@ class BakeVertexAO(Operator):
                     orig_object = obj
                     bpy.ops.object.duplicate()
                     obj = context.active_object
+                    obj.active_material = None
 
                     orig_object.hide_render = True
 
