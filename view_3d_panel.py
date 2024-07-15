@@ -87,14 +87,14 @@ class AOPanel(Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        
+
         if context.scene.world is None:
             layout.alert = True
-            
+
             alert_box = layout.box()
             alert_box.label(icon='ERROR', text='Missing World Settings')
             alert_box.label(icon='WORLD', text='Fix in World Properties')
-            
+
             layout.separator(factor=2)
             layout = layout.column()
             layout.active = False
