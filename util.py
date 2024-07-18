@@ -2,6 +2,7 @@ import functools
 import math
 import os.path
 from collections.abc import Iterable, Generator
+from enum import StrEnum
 from itertools import islice
 from typing import TypeVar, ContextManager
 
@@ -11,6 +12,7 @@ import numpy.typing as npt
 import bmesh
 import bpy
 import bpy_extras.object_utils
+from bpy.utils.previews import ImagePreviewCollection
 from mathutils import Matrix, Vector
 
 TO_FROM_BLENDER_SPACE = Matrix(
@@ -24,6 +26,18 @@ TO_FROM_BLENDER_SPACE = Matrix(
 """ Ends up being just a couple of rotations. Also is it's own inverse! """
 
 T = TypeVar('T')
+
+custom_icons: ImagePreviewCollection
+
+
+class S3OIcon(StrEnum):
+    LOGO = 'logo'
+    LOGO_TRANSPARENT = 'logo_transparent'
+
+    @property
+    def icon_id(self) -> int:
+        global custom_icons
+        return custom_icons[self].icon_id
 
 
 def batched(iterable: Iterable[T], n) -> Generator[tuple[T]]:
@@ -203,3 +217,16 @@ def depth_first_child_iteration(parent_object: bpy.types.Object) -> Iterable[bpy
         current_object = traversal_stack.pop()
         yield current_object
         traversal_stack.extend(reversed(current_object.children))
+
+
+def register():
+    global custom_icons
+    custom_icons = bpy.utils.previews.new()
+    dirname = os.path.dirname(os.path.abspath(__file__))
+    custom_icons.load('logo', os.path.join(dirname, 'logo.png'), 'IMAGE')
+    custom_icons.load('logo_transparent', os.path.join(dirname, 'logo_transparent.png'), 'IMAGE')
+
+
+def unregister():
+    global custom_icons
+    bpy.utils.previews.remove(custom_icons)

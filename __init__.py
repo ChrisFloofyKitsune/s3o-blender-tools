@@ -1,9 +1,9 @@
 bl_info = {
-    'name': 'Spring 3D Object (*.s3o) Tools',
-    'author': 'ChrisFloofyKitsune, based on s3o code by Beherith and Muon',
-    "description": "Tools for working with *.s3o files.",
+    'name': 'S3O Kit (formerly S3O Blender Tools)',
+    'author': 'ChrisFloofyKitsune, based on s3o code by Beherith and Muon. Logo by ZephyrSkies.',
+    "description": "A small kit of tools for authoring and editing *.s3o files.",
     'category': 'Import-Export',
-    'version': (0, 2, 6),
+    'version': (0, 3, 0),
     'blender': (4, 1, 0)
 }
 
@@ -37,8 +37,8 @@ module.register()
 # bootstrapping code based on: https://b3d.interplanety.org/en/creating-multifile-add-on-for-blender/
 import importlib
 import sys
-from glob import glob
 import time
+from glob import glob
 
 child_modules = {mod_name: f'{__name__}.{mod_name}' for mod_name in (
     p.replace('\\', '.').replace('/', '.').removesuffix('.py')

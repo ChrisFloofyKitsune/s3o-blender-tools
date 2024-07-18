@@ -60,20 +60,28 @@ class ImportSpring3dObject(Operator, ImportHelper):
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
 
+        ImportTexturesExec.parent_operator = self
         if self.unit_textures_folder == '':
-            search_path = os.path.split(self.filepath)[0]
-            attempts_left = 4
-            while attempts_left > 0:
-                if os.path.exists(tex_dir := os.path.join(search_path, 'unittextures')):
-                    ImportTexturesExec.parent_operator = self
-                    bpy.ops.s3o_tools.import_textures_exec(
-                        directory=tex_dir,
-                        set_globally=False,
-                    )
-                    break
-                search_path = os.path.split(search_path)[0]
-                attempts_left -= 1
-
+            try:
+                # try it with no directory first to see if one of the premade addon materials will work
+                bpy.ops.s3o_tools.import_textures_exec(directory='', set_globally=False)
+            except Exception:
+                search_path = os.path.split(self.filepath)[0]
+                attempts_left = 4
+                while attempts_left > 0:
+                    if os.path.exists(tex_dir := os.path.join(search_path, 'unittextures')):
+                        bpy.ops.s3o_tools.import_textures_exec(
+                            directory=tex_dir,
+                            set_globally=False,
+                        )
+                        break
+                    search_path = os.path.split(search_path)[0]
+                    attempts_left -= 1
+        else:
+            bpy.ops.s3o_tools.import_textures_exec(
+                directory=self.unit_textures_folder,
+                set_globally=False,
+            )
         return {'FINISHED'}
 
 
@@ -170,11 +178,11 @@ class AddonAsset(tuple[str, str], Enum):
     NodesTrackLooper = ('node_groups', 'TrackLooper')
     MaterialTemplate = ('materials', 'Template Material')
     MaterialArmada = ('materials', 'Armada Atlas')
-    MaterialArmadaDead = ('materials', 'Armada Atlas Dead')
+    MaterialArmadaWreck = ('materials', 'Armada Atlas Wreck')
     MaterialCortex = ('materials', 'Cortex Atlas')
-    MaterialCortexDead = ('materials', 'Cortex Atlas Dead')
+    MaterialCortexWreck = ('materials', 'Cortex Atlas Wreck')
     MaterialLegion = ('materials', 'Legion Atlas')
-    MaterialLegionDead = ('materials', 'Legion Atlas Dead')
+    MaterialLegionWreck = ('materials', 'Legion Atlas Wreck')
 
     @property
     def collection_name(self):
@@ -229,17 +237,18 @@ class ImportTexturesExec(Operator):
         D = bpy.data
 
         root_props: S3ORootProperties = root_obj.s3o_root
-        model_name: str = root_props.s3o_name
+        model_name: str = root_props.s3o_name.lower()
+        color_tex_name: str = root_props.texture_path_1.lower()
 
         material_to_load = AddonAsset.MaterialTemplate
-        if model_name.startswith('arm'):
-            material_to_load = AddonAsset.MaterialArmadaDead \
+        if color_tex_name.startswith('arm'):
+            material_to_load = AddonAsset.MaterialArmadaWreck \
                 if model_name.endswith('dead') else AddonAsset.MaterialArmada
-        elif model_name.startswith('cor'):
-            material_to_load = AddonAsset.MaterialCortexDead \
+        elif color_tex_name.startswith('cor'):
+            material_to_load = AddonAsset.MaterialCortexWreck \
                 if model_name.endswith('dead') else AddonAsset.MaterialCortex
-        elif model_name.startswith('leg'):
-            material_to_load = AddonAsset.MaterialLegionDead \
+        elif color_tex_name.startswith('leg'):
+            material_to_load = AddonAsset.MaterialLegionWreck \
                 if model_name.endswith('dead') else AddonAsset.MaterialLegion
 
         new_mat_name = model_name + '.material'
@@ -263,42 +272,44 @@ class ImportTexturesExec(Operator):
             new_mat.name = new_mat_name
 
             if material_to_load == AddonAsset.MaterialTemplate:
-                if self.directory != '':
-                    print(f'Attempting to load textures from: {self.directory}')
-                    try:
-                        tex1 = D.images.load(
-                            os.path.join(self.directory, root_props.texture_path_1), check_existing=True
-                        )
-                        tex1.alpha_mode = 'CHANNEL_PACKED'
-                        new_mat.node_tree.nodes['Color Texture'].image = tex1
+                if self.directory == '':
+                    raise ValueError('No directory provided for texture loading!')
 
-                        tex2 = D.images.load(
-                            os.path.join(self.directory, root_props.texture_path_2), check_existing=True
-                        )
-                        tex2.colorspace_settings.is_data = True
-                        new_mat.node_tree.nodes['Shader Texture'].image = tex2
+                print(f'Attempting to load textures from: {self.directory}')
+                try:
+                    tex1 = D.images.load(
+                        os.path.join(self.directory, root_props.texture_path_1), check_existing=True
+                    )
+                    tex1.alpha_mode = 'CHANNEL_PACKED'
+                    new_mat.node_tree.nodes['Color Texture'].image = tex1
 
-                        if (common_prefix := os.path.commonprefix(
-                            [root_props.texture_path_1, root_props.texture_path_2]
-                        )) != '':
-                            try:
-                                normal_tex = D.images.load(
-                                    os.path.join(
-                                        self.directory,
-                                        f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
-                                    ),
-                                    check_existing=True
-                                )
-                                normal_tex.colorspace_settings.is_data = True
-                                new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
-                            except Exception:
-                                self.parent_operator.report(
-                                    {'WARNING'},
-                                    f'Could not automatically find the Normal texture for "{model_name}"!'
-                                )
-                    except Exception as err:
-                        self.parent_operator.report({'ERROR'}, f'Could not set up the textures for "{model_name}"!!')
-                        raise err
+                    tex2 = D.images.load(
+                        os.path.join(self.directory, root_props.texture_path_2), check_existing=True
+                    )
+                    tex2.colorspace_settings.is_data = True
+                    new_mat.node_tree.nodes['Shader Texture'].image = tex2
+
+                    if (common_prefix := os.path.commonprefix(
+                        [root_props.texture_path_1, root_props.texture_path_2]
+                    )) != '':
+                        try:
+                            normal_tex = D.images.load(
+                                os.path.join(
+                                    self.directory,
+                                    f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
+                                ),
+                                check_existing=True
+                            )
+                            normal_tex.colorspace_settings.is_data = True
+                            new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
+                        except Exception:
+                            self.parent_operator.report(
+                                {'WARNING'},
+                                f'Could not automatically find the Normal texture for "{model_name}"!'
+                            )
+                except Exception as err:
+                    self.parent_operator.report({'ERROR'}, f'Could not set up the textures for "{model_name}"!!')
+                    raise err
 
         if material_to_load != AddonAsset.MaterialTemplate:
             self.parent_operator.report(
