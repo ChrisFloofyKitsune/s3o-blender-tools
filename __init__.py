@@ -3,6 +3,10 @@ bl_info = {
     'author': 'ChrisFloofyKitsune, based on s3o code by Beherith and Muon. Logo by ZephyrSkies.',
     "description": "A small kit of tools for authoring and editing *.s3o files.",
     'category': 'Import-Export',
+    'location': 'View3D > Sidebar > S3O',
+    'support': 'COMMUNITY',
+    'doc_url': 'https://github.com/ChrisFloofyKitsune/s3o-blender-tools',
+    'tracker_url': 'https://github.com/ChrisFloofyKitsune/s3o-blender-tools/issues',
     'version': (0, 3, 0),
     'blender': (4, 1, 0)
 }
@@ -17,8 +21,8 @@ import importlib.util
 
 # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
 
-module_name = "s3o_blender_tools"
-file_path = "C:/bar_dev/blender_stuff/s3o_blender_tools/__init__.py"
+module_name = "s3o_kit"
+file_path = "C:/bar_dev/blender_stuff/s3o_kit/__init__.py"
 
 if module_name in sys.modules:
     try:

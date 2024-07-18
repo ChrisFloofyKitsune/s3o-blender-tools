@@ -1,12 +1,16 @@
-# s3o Blender Tools
+# S3O Kit
 
-Small collection of tools for working with Spring/Recoil .s3o 3D model files in Blender.
+<img src="logo.png" width="100" height="100">
+
+Small collection of tools for authoring/editing Spring/Recoil .s3o 3D model files in Blender.
 The tools are currently designed around making models for Beyond All Reason- though it should work for other games.
 
 # Credits
 
 A big thanks to Beherith who's code I based this off of and ported into Blender.
 Equally big thanks to the Beyond All Reason community for making awesome models- making me see the need make this. (The tools available before this were really bad okay)
+S3O Kit logo by ZephyrSkies
+SpringModelingTemplate.blend by Tharsis aka "TremorEnjoyer"
 
 # Install instructions
 
@@ -29,7 +33,7 @@ Equally big thanks to the Beyond All Reason community for making awesome models-
 <img width="50%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/f0210c53-7cde-4d81-bf61-fe420e27e1fa">
 <img width="40%" src="https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/732c4d80-3c52-4c7f-8748-f6ac3726d0d7">
 
-# Using s3o Tools
+# Using S3O Kit
 
 Inside the S3O Tab there are a couple of menus.
 
@@ -41,7 +45,7 @@ Inside the S3O Tab there are a couple of menus.
 ### !! Read the Tooltips !!
 Hover over each and every option to get a description of what it does.
 
-### S3O Tools Menu
+### S3O Kit Menu
 The S3O Tools menu has the general tools for use in editing/creating models.
 
 ### Ambient Occlusion
@@ -122,3 +126,14 @@ Check out the tooltips for descriptions on what each button and option in the me
   * Add Apply Rotation/Scale/Modifiers options to the S3Oify Object Hierarchy tool.
 * v0.2.4 Changes: Improve AO baking result a bit more by making a copy of the mesh and splitting it across the sharp edges before baking-- then saving results to the original mesh.
 * v0.2.5 Changes: Fix incorrect determination of sharp edges on s3o import.
+* v0.2.6 Changes: 
+   * Fix error in refresh_s3o_props where it tried to access random custom properties added by other scripts.
+   * Treat objects with missing AO data as "full bright"
+   * Automatically detect and fix broken Materials/Shader Nodes. 
+   * Import Color texture properly with Alpha mode set to NONE 
+   * Version now shown in addon UI
+* v0.3.0 Changes:
+  * Rename addon to "S3O Kit"
+  * Add logo icon by ZephyrSkies around the UI
+  * Improve AO baking by disabling the material on the copied mesh before baking
+  * Redo how Materials/Textures are loaded, now using SpringModelingTemplate.blend by Tharsis
