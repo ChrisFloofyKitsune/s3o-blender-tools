@@ -107,9 +107,11 @@ def strip_suffix(blender_name: str):
 def library_load_addon_assets() -> ContextManager:
     dirname = os.path.dirname(os.path.abspath(__file__))
     return bpy.data.libraries.load(
-        filepath=os.path.join(dirname, 'addon_assets.blend'),
+        filepath=os.path.join(dirname, 'SpringModelingTemplate.blend'),
         assets_only=True,
-        link=True
+        link=True,
+        create_liboverrides=True,
+        reuse_liboverrides=True,
     )
 
 

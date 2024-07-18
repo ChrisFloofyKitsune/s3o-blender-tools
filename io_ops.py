@@ -1,9 +1,10 @@
 import os.path
 import traceback
+from enum import Enum
 
 import bpy
 from bpy.props import StringProperty, BoolProperty
-from bpy.types import Operator, Context, Menu, Event, Material
+from bpy.types import Operator, Context, Menu, Event, Material, Object
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from . import s3o, s3o_utils, util, obj_props
 from .obj_props import S3ORootProperties
@@ -163,6 +164,23 @@ class ImportTextures(Operator):
         return {'FINISHED'}
 
 
+class AddonAsset(tuple[str, str], Enum):
+    NodesSampler = ('node_groups', 'BARLikeSampling')
+    NodesTrackLooper = ('node_groups', 'TrackLooper')
+    MaterialTemplate = ('materials', 'Template Material')
+    MaterialArmada = ('materials', 'Armada Atlas')
+    MaterialCortex = ('materials', 'Cortex Atlas')
+    MaterialLegion = ('materials', 'Legion Atlas')
+
+    @property
+    def collection_name(self):
+        return self[0]
+
+    @property
+    def asset_name(self):
+        return self[1]
+
+
 class ImportTexturesExec(Operator):
     bl_idname = "s3o_tools.import_textures_exec"
     bl_label = "Import Textures Exec"
@@ -171,104 +189,122 @@ class ImportTexturesExec(Operator):
     directory: StringProperty(default='')
     set_globally: BoolProperty(default=False)
 
-    def execute(self, context: Context) -> set[str]:
+    @staticmethod
+    def ensure_assets_loaded(*assets: AddonAsset) -> dict[AddonAsset, any]:
+        asset_info = [
+            (getattr(bpy.data, asset.collection_name), asset)
+            for asset in assets
+        ]
+
+        assets_to_load: list[tuple[any, AddonAsset]] = [
+            (collection, asset) for (collection, asset) in asset_info
+            if (
+                asset.asset_name not in collection
+                or collection[asset.asset_name] is None
+                or collection[asset.asset_name].is_missing
+            )
+        ]
+
+        if len(assets_to_load) != 0:
+            # clean up any broken assets
+            for (data, asset) in assets_to_load:
+                if asset.asset_name in data:
+                    data.remove(data[asset.asset_name])
+
+            with util.library_load_addon_assets() as (_, data_to):
+                for _, asset in assets_to_load:
+                    names_to_load = getattr(data_to, asset.collection_name, list())
+                    names_to_load.append(asset.asset_name)
+                    setattr(data_to, asset.collection_name, names_to_load)
+
+        return {asset: collection[asset.asset_name] for (collection, asset) in asset_info}
+
+    def load_materials_for_obj(self, root_obj: Object, context: Context):
         D = bpy.data
 
-        def needs_loaded(*pairs: tuple[any, str]):
-            missing_assets = False
-            for (data, asset_name) in pairs:
-                if asset_name not in data:
-                    missing_assets |= True
-                else:
-                    asset = data[asset_name]
-                    missing_assets |= asset is None or asset.is_missing
+        root_props: S3ORootProperties = root_obj.s3o_root
 
-            if not missing_assets:
-                return False
+        material_to_load = AddonAsset.MaterialTemplate
+        if root_props.s3o_name.startswith('arm'):
+            material_to_load = AddonAsset.MaterialArmada
+        elif root_props.s3o_name.startswith('cor'):
+            material_to_load = AddonAsset.MaterialCortex
+        elif root_props.s3o_name.startswith('leg'):
+            material_to_load = AddonAsset.MaterialLegion
 
-            for (data, asset_name) in pairs:
-                if asset_name in data:
-                    data.remove(data[asset_name])
-            return True
+        new_mat_name = root_props.s3o_name + '.material'
+        new_mat: Material | None = None
+        if new_mat_name in D.materials:
+            new_mat: Material = D.materials[new_mat_name]
 
-        if needs_loaded((D.materials, 'BAR Material Template'), (D.node_groups, 'BAR Shader Nodes')):
-            with util.library_load_addon_assets() as (_, data_to):
-                data_to.materials = ['BAR Material Template']
-                data_to.node_groups = ['BAR Shader Nodes']
+            if (new_mat is not None and (
+                new_mat.is_missing
+                or AddonAsset.NodesSampler.asset_name not in new_mat.node_tree.nodes
+                or new_mat.node_tree.nodes[AddonAsset.NodesSampler.asset_name].node_tree.is_missing
+                or AddonAsset.NodesTrackLooper.asset_name not in new_mat.node_tree.nodes
+                or new_mat.node_tree.nodes[AddonAsset.NodesTrackLooper.asset_name].node_tree.is_missing
+            )):
+                D.materials.remove(new_mat)
+                new_mat = None
 
-        template_mat = D.materials['BAR Material Template']
+        if new_mat is None:
+            template_mat = self.ensure_assets_loaded(material_to_load)[material_to_load]
+            new_mat = template_mat.copy()
+            new_mat.name = new_mat_name
 
+            if material_to_load == AddonAsset.MaterialTemplate:
+                if self.directory != '':
+                    print(f'Attempting to load textures from: {self.directory}')
+                    try:
+                        tex1 = D.images.load(
+                            os.path.join(self.directory, root_props.texture_path_1), check_existing=True
+                        )
+                        tex1.alpha_mode = 'CHANNEL_PACKED'
+
+                        tex2 = D.images.load(
+                            os.path.join(self.directory, root_props.texture_path_2), check_existing=True
+                        )
+                        tex2.colorspace_settings.name = 'Non-Color'
+
+                        new_mat.node_tree.nodes['Color Texture'].image = tex1
+                        new_mat.node_tree.nodes['Shader Texture'].image = tex2
+
+                        if (common_prefix := os.path.commonprefix(
+                            [root_props.texture_path_1, root_props.texture_path_2]
+                        )) != '':
+                            try:
+                                normal_tex = D.images.load(
+                                    os.path.join(
+                                        self.directory,
+                                        f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
+                                    ),
+                                    check_existing=True
+                                )
+                                normal_tex.colorspace_settings.name = 'Non-Color'
+                                new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
+                            except Exception as err:
+                                print('could not find normal texture :(')
+                                traceback.print_exception(err)
+
+                    except Exception as err:
+                        print("Could not the textures :(")
+                        traceback.print_exception(err)
+
+        for child_obj in root_obj.children_recursive:
+            child_obj.active_material = new_mat
+
+    def execute(self, context: Context) -> set[str]:
         if self.set_globally:
             targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
         else:
             targets = set(obj_props.get_s3o_root_object(o) for o in context.selected_objects)
-            if len(targets) == 0:
-                return {'CANCELED'}
+        if len(targets) == 0:
+            return {'CANCELED'}
+
+        self.ensure_assets_loaded(AddonAsset.NodesSampler, AddonAsset.NodesTrackLooper)
 
         for root_obj in targets:
-            root_props: S3ORootProperties = root_obj.s3o_root
-            new_mat_name = root_props.s3o_name + '.material'
-
-            new_mat: Material | None = None
-            if new_mat_name in D.materials:
-                new_mat: Material = D.materials[new_mat_name]
-
-                if (new_mat is not None and
-                    (new_mat.is_missing or new_mat.node_tree.nodes['BAR Shader Nodes'].node_tree is None)
-                ):
-                    D.materials.remove(new_mat)
-                    new_mat = None
-
-            if new_mat is None:
-                new_mat = template_mat.copy()
-                new_mat.name = new_mat_name
-
-            if self.directory != '':
-                print(f'Attempting to load textures from: {self.directory}')
-                try:
-                    tex1 = D.images.load(os.path.join(self.directory, root_props.texture_path_1), check_existing=True)
-                    tex1.alpha_mode = 'NONE'
-
-                    tex2 = D.images.load(os.path.join(self.directory, root_props.texture_path_2), check_existing=True)
-                    tex2.colorspace_settings.name = 'Non-Color'
-
-                    new_mat.node_tree.nodes['Color Texture'].image = tex1
-                    new_mat.node_tree.nodes['Other Texture'].image = tex2
-
-                    if (common_prefix := os.path.commonprefix(
-                        [root_props.texture_path_1, root_props.texture_path_2]
-                    )) != '':
-                        try:
-                            normal_tex = D.images.load(
-                                os.path.join(
-                                    self.directory,
-                                    f'{common_prefix}normal{os.path.splitext(tex1.filepath)[1]}'
-                                ),
-                                check_existing=True
-                            )
-                            normal_tex.colorspace_settings.name = 'Non-Color'
-                            new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
-                        except Exception as err:
-                            print('could not find normal texture :(')
-                            traceback.print_exception(err)
-
-                except Exception as err:
-                    print("Could not the textures :(")
-                    traceback.print_exception(err)
-
-            if 'arm' in root_props.s3o_name:
-                team_color = (0, 0x4D, 0xFF)
-            elif 'cor' in root_props.s3o_name:
-                team_color = (0xFF, 0x10, 0x05)
-            elif 'leg' in root_props.s3o_name:
-                team_color = (0x0C, 0xE8, 0x18)
-            else:
-                team_color = (0x7F,) * 3
-
-            new_mat.node_tree.nodes["Team Color"].outputs[0].default_value = (*(c / 0xFF for c in team_color), 1)
-
-            for child_obj in root_obj.children_recursive:
-                child_obj.active_material = new_mat
+            self.load_materials_for_obj(root_obj, context)
 
         return {'FINISHED'}
 
