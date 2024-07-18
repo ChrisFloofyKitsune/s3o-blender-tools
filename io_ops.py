@@ -1,5 +1,4 @@
 import os.path
-import traceback
 from enum import Enum
 
 import bpy
@@ -66,6 +65,7 @@ class ImportSpring3dObject(Operator, ImportHelper):
             attempts_left = 4
             while attempts_left > 0:
                 if os.path.exists(tex_dir := os.path.join(search_path, 'unittextures')):
+                    ImportTexturesExec.parent_operator = self
                     bpy.ops.s3o_tools.import_textures_exec(
                         directory=tex_dir,
                         set_globally=False,
@@ -157,6 +157,7 @@ class ImportTextures(Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context: Context) -> set[str]:
+        ImportTexturesExec.parent_operator = self
         bpy.ops.s3o_tools.import_textures_exec(
             directory=self.directory,
             set_globally=self.set_globally
@@ -188,6 +189,8 @@ class ImportTexturesExec(Operator):
 
     directory: StringProperty(default='')
     set_globally: BoolProperty(default=False)
+
+    parent_operator: Operator = None
 
     @staticmethod
     def ensure_assets_loaded(*assets: AddonAsset) -> dict[AddonAsset, any]:
@@ -260,13 +263,12 @@ class ImportTexturesExec(Operator):
                             os.path.join(self.directory, root_props.texture_path_1), check_existing=True
                         )
                         tex1.alpha_mode = 'CHANNEL_PACKED'
+                        new_mat.node_tree.nodes['Color Texture'].image = tex1
 
                         tex2 = D.images.load(
                             os.path.join(self.directory, root_props.texture_path_2), check_existing=True
                         )
-                        tex2.colorspace_settings.name = 'Non-Color'
-
-                        new_mat.node_tree.nodes['Color Texture'].image = tex1
+                        tex2.colorspace_settings.is_data = True
                         new_mat.node_tree.nodes['Shader Texture'].image = tex2
 
                         if (common_prefix := os.path.commonprefix(
@@ -280,15 +282,23 @@ class ImportTexturesExec(Operator):
                                     ),
                                     check_existing=True
                                 )
-                                normal_tex.colorspace_settings.name = 'Non-Color'
+                                normal_tex.colorspace_settings.is_data = True
                                 new_mat.node_tree.nodes['Normal Texture'].image = normal_tex
-                            except Exception as err:
-                                print('could not find normal texture :(')
-                                traceback.print_exception(err)
-
+                            except Exception:
+                                self.parent_operator.report(
+                                    {'WARNING'},
+                                    f'Could not automatically find the Normal texture for "{root_props.s3o_name}"!'
+                                )
                     except Exception as err:
-                        print("Could not the textures :(")
-                        traceback.print_exception(err)
+                        self.parent_operator.report({'ERROR'}, 'Could not set up the textures :(')
+                        raise err
+
+        if material_to_load != AddonAsset.MaterialTemplate:
+            self.parent_operator.report(
+                {"INFO"}, f'Loaded premade material "{material_to_load.asset_name}" from addon assets!'
+            )
+        else:
+            self.parent_operator.report({"INFO"}, f'Created material from textures in {self.directory}')
 
         for child_obj in root_obj.children_recursive:
             child_obj.active_material = new_mat
