@@ -170,8 +170,11 @@ class AddonAsset(tuple[str, str], Enum):
     NodesTrackLooper = ('node_groups', 'TrackLooper')
     MaterialTemplate = ('materials', 'Template Material')
     MaterialArmada = ('materials', 'Armada Atlas')
+    MaterialArmadaDead = ('materials', 'Armada Atlas Dead')
     MaterialCortex = ('materials', 'Cortex Atlas')
+    MaterialCortexDead = ('materials', 'Cortex Atlas Dead')
     MaterialLegion = ('materials', 'Legion Atlas')
+    MaterialLegionDead = ('materials', 'Legion Atlas Dead')
 
     @property
     def collection_name(self):
@@ -226,16 +229,20 @@ class ImportTexturesExec(Operator):
         D = bpy.data
 
         root_props: S3ORootProperties = root_obj.s3o_root
+        model_name: str = root_props.s3o_name
 
         material_to_load = AddonAsset.MaterialTemplate
-        if root_props.s3o_name.startswith('arm'):
-            material_to_load = AddonAsset.MaterialArmada
-        elif root_props.s3o_name.startswith('cor'):
-            material_to_load = AddonAsset.MaterialCortex
-        elif root_props.s3o_name.startswith('leg'):
-            material_to_load = AddonAsset.MaterialLegion
+        if model_name.startswith('arm'):
+            material_to_load = AddonAsset.MaterialArmadaDead \
+                if model_name.endswith('dead') else AddonAsset.MaterialArmada
+        elif model_name.startswith('cor'):
+            material_to_load = AddonAsset.MaterialCortexDead \
+                if model_name.endswith('dead') else AddonAsset.MaterialCortex
+        elif model_name.startswith('leg'):
+            material_to_load = AddonAsset.MaterialLegionDead \
+                if model_name.endswith('dead') else AddonAsset.MaterialLegion
 
-        new_mat_name = root_props.s3o_name + '.material'
+        new_mat_name = model_name + '.material'
         new_mat: Material | None = None
         if new_mat_name in D.materials:
             new_mat: Material = D.materials[new_mat_name]
@@ -287,10 +294,10 @@ class ImportTexturesExec(Operator):
                             except Exception:
                                 self.parent_operator.report(
                                     {'WARNING'},
-                                    f'Could not automatically find the Normal texture for "{root_props.s3o_name}"!'
+                                    f'Could not automatically find the Normal texture for "{model_name}"!'
                                 )
                     except Exception as err:
-                        self.parent_operator.report({'ERROR'}, 'Could not set up the textures :(')
+                        self.parent_operator.report({'ERROR'}, f'Could not set up the textures for "{model_name}"!!')
                         raise err
 
         if material_to_load != AddonAsset.MaterialTemplate:
