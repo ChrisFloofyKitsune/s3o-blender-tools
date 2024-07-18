@@ -5,14 +5,18 @@ from bl_ui.generic_ui_list import draw_ui_list
 from bpy.types import Panel, Context, UILayout
 from . import bl_info
 from .ambient_occlusion import AOProps, ObjectExplodeEntry
+from .util import S3OIcon
 
 
 class MainPanel(Panel):
     bl_idname = "S3O_PT_view_3d_main"
-    bl_label = f"S3O Tools v{'.'.join(str(x) for x in bl_info['version'])}"
+    bl_label = f"S3O Kit v{'.'.join(str(x) for x in bl_info['version'])}"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "S3O"
+
+    def draw_header(self, context: 'Context'):
+        self.layout.label(icon_value=S3OIcon.LOGO_TRANSPARENT.icon_id)
 
     def draw(self, context: Context):
         layout = self.layout
@@ -82,6 +86,9 @@ class AOPanel(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "S3O"
+
+    def draw_header(self, context: 'Context'):
+        self.layout.label(icon_value=S3OIcon.LOGO_TRANSPARENT.icon_id)
 
     def draw(self, context: Context):
         layout = self.layout

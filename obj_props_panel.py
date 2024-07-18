@@ -1,6 +1,7 @@
 import bpy.utils
 from bpy.types import Panel, Context
 from .obj_props import S3ORootProperties, S3OAimPointProperties, S3OPlaceholderProperties
+from .util import S3OIcon
 
 
 class S3OPropsPanel(Panel):
@@ -8,6 +9,9 @@ class S3OPropsPanel(Panel):
     bl_region_type = "WINDOW"
     bl_context = "data"
     bl_options = set()
+
+    def draw_header(self, context: 'Context'):
+        self.layout.label(icon_value=S3OIcon.LOGO_TRANSPARENT.icon_id)
 
 
 class S3ORootPropsPanel(S3OPropsPanel):
@@ -48,7 +52,7 @@ class S3OAimPointPropsPanel(S3OPropsPanel):
         column.use_property_split = False
         column.prop(props, 'align_to_rotation')
         column.use_property_split = True
-        
+
         row = column.row()
         row.enabled = not props.align_to_rotation
         row.prop(props, 'dir')
