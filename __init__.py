@@ -44,26 +44,42 @@ import sys
 import time
 from glob import glob
 
-child_modules = {mod_name: f'{__name__}.{mod_name}' for mod_name in (
-    p.replace('\\', '.').replace('/', '.').removesuffix('.py')
-    for p in glob("**/[!_]*.py", root_dir=__path__[0], recursive=True)
-)}
+child_modules = {}
 
-print(f'{time.asctime()} (RE)LOADING: {__name__}')
 
-for mod_name, full_name in child_modules.items():
-    if full_name in sys.modules:
-        # print('Reload', full_name)
-        importlib.reload(sys.modules[full_name])
-    else:
-        # print('Initial load', full_name)
-        parent, name = (
-            mod_name.rsplit('.', 1)
-            if '.' in mod_name else ('', mod_name)
-        )
-        exec(f'from .{parent} import {name}')
+def bootstrap():
+    global child_modules
+    child_modules = {mod_name: f'{__name__}.{mod_name}' for mod_name in (
+        p.replace('\\', '.').replace('/', '.').removesuffix('.py')
+        for p in glob("**/[!_]*.py", root_dir=__path__[0], recursive=True)
+    )}
 
-del mod_name, full_name
+    if 'package_for_release' in child_modules:
+        child_modules.pop('package_for_release')
+
+    print(f'{time.asctime()} (RE)LOADING: {__name__}')
+
+    for mod_name, full_name in child_modules.items():
+        if full_name in sys.modules:
+            # print('Reload', full_name)
+            importlib.reload(sys.modules[full_name])
+        else:
+            # print('Initial load', full_name)
+            parent, name = (
+                mod_name.rsplit('.', 1)
+                if '.' in mod_name else ('', mod_name)
+            )
+            exec(f'from .{parent} import {name}')
+
+
+try:
+    bootstrap()
+except Exception as e:
+    print(f'{time.asctime()} ERROR: {__name__} failed to load')
+    # print stacktrace
+    import traceback
+
+    traceback.print_exception(e)
 
 
 def register():
