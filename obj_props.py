@@ -259,11 +259,15 @@ def get_or_create_placeholder_empty(
         placeholder.parent = parent_obj
 
         # move placeholder to the parent's collection(s)
-        for col in placeholder.users_collection:
-            col.objects.unlink(placeholder)
+        placeholder_collections = placeholder.users_collection
+        parent_collections = parent_obj.users_collection
 
-        for col in parent_obj.users_collection:
-            col.objects.link(placeholder)
+        if placeholder_collections != parent_collections:
+            for col in placeholder_collections:
+                col.objects.unlink(placeholder)
+
+            for col in parent_collections:
+                col.objects.link(placeholder)
 
         print(f'Created placeholder {tag} for {parent_obj.name}')
 
