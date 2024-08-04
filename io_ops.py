@@ -64,7 +64,7 @@ class ImportSpring3dObject(Operator, ImportHelper):
         if self.unit_textures_folder == '':
             try:
                 # try it with no directory first to see if one of the premade addon materials will work
-                bpy.ops.s3o_tools.import_textures_exec(directory='', set_globally=False)
+                bpy.ops.s3o_tools.import_textures_exec(directory='')
             except Exception:
                 search_path = os.path.split(self.filepath)[0]
                 attempts_left = 4
@@ -72,15 +72,13 @@ class ImportSpring3dObject(Operator, ImportHelper):
                     if os.path.exists(tex_dir := os.path.join(search_path, 'unittextures')):
                         bpy.ops.s3o_tools.import_textures_exec(
                             directory=tex_dir,
-                            set_globally=False,
                         )
                         break
                     search_path = os.path.split(search_path)[0]
                     attempts_left -= 1
         else:
             bpy.ops.s3o_tools.import_textures_exec(
-                directory=self.unit_textures_folder,
-                set_globally=False,
+                directory=self.unit_textures_folder
             )
         return {'FINISHED'}
 
@@ -150,12 +148,6 @@ class ImportTextures(Operator):
         description="Show folders in the File Browser",
     )
 
-    set_globally: BoolProperty(
-        name="Load Textures Globally",
-        description="If false, only loads for selection. If true, loads for all s3o root objects in the scene.",
-        default=True,
-    )
-
     @classmethod
     def poll(cls, context: Context):
         return any(S3ORootProperties.poll(o) for o in bpy.context.scene.objects)
@@ -168,7 +160,6 @@ class ImportTextures(Operator):
         ImportTexturesExec.parent_operator = self
         bpy.ops.s3o_tools.import_textures_exec(
             directory=self.directory,
-            set_globally=self.set_globally
         )
         return {'FINISHED'}
 
@@ -199,7 +190,6 @@ class ImportTexturesExec(Operator):
     bl_options = {'INTERNAL'}
 
     directory: StringProperty(default='')
-    set_globally: BoolProperty(default=False)
 
     parent_operator: Operator = None
 
@@ -237,6 +227,17 @@ class ImportTexturesExec(Operator):
         D = bpy.data
 
         root_props: S3ORootProperties = root_obj.s3o_root
+
+        missing_tex_1 = root_props.texture_path_1 is None or str(root_props.texture_path_1).strip() == ''
+        missing_tex_2 = root_props.texture_path_2 is None or str(root_props.texture_path_2).strip() == ''
+
+        if missing_tex_1 or missing_tex_2:
+            self.parent_operator.report(
+                {'WARNING'},
+                f'No {"color" if missing_tex_1 else "shader"} texture path found for "{root_obj.name}"! Skipping...'
+            )
+            return
+
         model_name: str = root_props.s3o_name.lower()
         color_tex_name: str = root_props.texture_path_1.lower()
 
@@ -322,10 +323,7 @@ class ImportTexturesExec(Operator):
             child_obj.active_material = new_mat
 
     def execute(self, context: Context) -> set[str]:
-        if self.set_globally:
-            targets = set(o for o in context.scene.objects if S3ORootProperties.poll(o))
-        else:
-            targets = set(obj_props.get_s3o_root_object(o) for o in context.selected_objects)
+        targets = set(obj_props.get_s3o_root_object(o) for o in context.selected_objects)
         if len(targets) == 0:
             return {'CANCELED'}
 
