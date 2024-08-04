@@ -258,6 +258,15 @@ def get_or_create_placeholder_empty(
         placeholder.rotation_mode = 'YXZ'
         placeholder.parent = parent_obj
 
+        # move placeholder to the parent's collection(s)
+        for col in placeholder.users_collection:
+            col.objects.unlink(placeholder)
+
+        for col in parent_obj.users_collection:
+            col.objects.link(placeholder)
+
+        print(f'Created placeholder {tag} for {parent_obj.name}')
+
     return placeholder
 
 
