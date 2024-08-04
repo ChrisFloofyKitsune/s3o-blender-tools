@@ -211,8 +211,13 @@ def blender_obj_to_s3o(obj: bpy.types.Object) -> S3O:
     if not S3ORootProperties.poll(obj):
         raise ValueError('Object to export must have s3o root properties')
 
-    if (count := sum(1 for c in obj.children if c.type == 'MESH' or S3OAimPointProperties.poll(c))) != 1:
-        raise ValueError(f'Expected only ONE non-placeholder child of the root object, found {count}')
+    non_placeholder_children = [c for c in obj.children if c.type == 'MESH' or S3OAimPointProperties.poll(c)]
+    if len(non_placeholder_children) != 1:
+        raise ValueError(
+            f'Expected only ONE non-placeholder child of the root object, found {len(non_placeholder_children)}. \n'
+            f'Objects: {[c.name for c in non_placeholder_children]}. \n'
+            f'Check to see if extra objects are hidden or in different collections.'
+        )
 
     props: S3ORootProperties = obj.s3o_root
 
