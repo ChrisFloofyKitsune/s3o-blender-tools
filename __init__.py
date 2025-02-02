@@ -7,7 +7,7 @@ bl_info = {
     'support': 'COMMUNITY',
     'doc_url': 'https://github.com/ChrisFloofyKitsune/s3o-blender-tools',
     'tracker_url': 'https://github.com/ChrisFloofyKitsune/s3o-blender-tools/issues',
-    'version': (0, 3, 1),
+    'version': (0, 3, 2),
     'blender': (4, 1, 0)
 }
 

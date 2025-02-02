@@ -216,29 +216,32 @@ class ExplodeObjectsForBake(AbstractContextManager):
 
 
 def ao_targets_iter(context: Context) -> Iterator[bpy.types.Object]:
-    if context.active_object is None:
-        raise ValueError('Context must have an active object!')
-
     match context.scene.s3o_ao.bake_target:
         case 'ALL':
-            parent_objs = [o for o in context.scene.objects if o.parent is None]
+            parent_objs = [o for o in context.scene.objects if o.parent is None and not o.hide_get()]
 
             for parent in parent_objs:
                 for obj in util.depth_first_child_iteration(parent):
-                    if obj.type == 'MESH':
+                    if obj.type == 'MESH' and not obj.hide_get():
                         yield obj
 
         case 'HIERARCHY':
+            if context.active_object is None:
+                raise ValueError('Context must have an active object!')
+            
             parent_obj = context.active_object
             while parent_obj.parent is not None:
                 parent_obj = parent_obj.parent
 
             for obj in util.depth_first_child_iteration(parent_obj):
-                if obj.type == 'MESH':
+                if obj.type == 'MESH' and not obj.hide_get():
                     yield obj
 
         case 'ACTIVE':
-            if context.active_object.type == 'MESH':
+            if context.active_object is None:
+                raise ValueError('Context must have an active object!')
+            
+            if context.active_object.type == 'MESH' and not context.active_object.hide_get():
                 yield context.active_object
 
 

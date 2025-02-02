@@ -115,7 +115,7 @@ Check out the tooltips for descriptions on what each button and option in the me
 
 ![image](https://github.com/ChrisFloofyKitsune/s3o-blender-tools/assets/4379469/b794ed69-d903-4986-83a6-a601b9308891)
 
-### Change Log
+# Change Log
 * v0.1.0: Initial Release
 * v0.1.1: Add the "Add Mesh as Child" and "S3Oify Object Hiearchy" buttons.
 * v0.2.0: Full Ambient Occlusion baking toolset, check tooltips for info. Should have all the AO-related functionality that OBJ2S3O did... save for batch baking.
@@ -137,3 +137,7 @@ Check out the tooltips for descriptions on what each button and option in the me
   * Add logo icon by ZephyrSkies around the UI
   * Improve AO baking by disabling the material on the copied mesh before baking
   * Redo how Materials/Textures are loaded, now using SpringModelingTemplate.blend by Tharsis
+v0.3.1 Changes:
+  * Improve "too many non-placeholder children" error message
+v0.3.2 Changes:
+  * AO Operations now ignore hidden objects
